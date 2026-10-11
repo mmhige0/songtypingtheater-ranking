@@ -48,9 +48,10 @@ const ReceivedAt = ({ entry }: { entry: RankingEntry }) =>
     <span>受付 {formatJst(entry.receivedAt)}</span>
   )
 
+// パネル・枠の中に置く順位表。枠は呼び出し側で付ける
 export const RankingTable = ({ entries, emptyMessage }: { entries: RankingEntry[]; emptyMessage: string }) =>
   entries.length === 0 ? (
-    <p class="empty">{emptyMessage}</p>
+    <p class="panel-empty">{emptyMessage}</p>
   ) : (
     <table class="ranking">
       <thead>
@@ -63,10 +64,10 @@ export const RankingTable = ({ entries, emptyMessage }: { entries: RankingEntry[
       <tbody>
         {entries.map((entry) => (
           <tr>
-            <td class="rank num">{entry.rank}位</td>
+            <td class={entry.rank === 1 ? 'rank rank-1 num' : 'rank num'}>{entry.rank}位</td>
             <td>
               <Participants participants={entry.participants} />
-              <div class="muted small received">
+              <div class="received">
                 <ReceivedAt entry={entry} />
               </div>
             </td>
@@ -95,11 +96,27 @@ export const Pagination = ({
   if (lastPage === 1 && page === 1) return null
   return (
     <nav class="pagination" aria-label="ページ送り">
-      {page > 1 ? <a href={href(Math.min(page - 1, lastPage))}>前へ</a> : <span class="muted">前へ</span>}
-      <span class="num">
+      {page > 1 ? (
+        <a class="button button-outline" href={href(Math.min(page - 1, lastPage))}>
+          前へ
+        </a>
+      ) : (
+        <span class="button button-outline" aria-disabled="true">
+          前へ
+        </span>
+      )}
+      <span class="num small muted">
         {page} / {lastPage} ページ（{total}件）
       </span>
-      {page < lastPage ? <a href={href(page + 1)}>次へ</a> : <span class="muted">次へ</span>}
+      {page < lastPage ? (
+        <a class="button button-outline" href={href(page + 1)}>
+          次へ
+        </a>
+      ) : (
+        <span class="button button-outline" aria-disabled="true">
+          次へ
+        </span>
+      )}
     </nav>
   )
 }

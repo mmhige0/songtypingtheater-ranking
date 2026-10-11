@@ -2,7 +2,7 @@ import type { BestScore, BestScores, RankingPage, SoloBestScore } from '../lib/r
 import type { SongSummary } from '../lib/song-query'
 import { PLAYER_COUNTS, type PlayerCount, type SongSort } from '../lib/view-query'
 import { formatScore, Pagination, RankingTable, toQuery } from './components'
-import { Layout, SITE_NAME } from './layout'
+import { Layout } from './layout'
 
 // 1ページ目はpageを付けない
 const pageParam = (page: number) => (page === 1 ? null : page)
@@ -10,11 +10,42 @@ const pageParam = (page: number) => (page === 1 ? null : page)
 const songPath = (gameSongId: string) => `/songs/${encodeURIComponent(gameSongId)}`
 
 const SongMeta = ({ song }: { song: SongSummary }) => (
-  <p class="song-meta">
-    曲番 <span class="num">{song.gameSongId}</span>
+  <p class="page-meta">
+    <span class="num">No.{song.gameSongId}</span>
     {song.artist !== null && <> ・ {song.artist}</>}
-    {song.level !== null && <> ・ 難易度 {song.level}</>}
+    {song.level !== null && <> ・ Lv.{song.level}</>}
   </p>
+)
+
+// プレイヤー名検索とFC絞り込みのフォーム。曲別ランキングではタブのラジオボタンもform属性でこのフォームに含める
+const RankingFilters = ({
+  id,
+  action,
+  name,
+  fullComboOnly,
+  clearHref,
+}: {
+  id?: string
+  action: string
+  name: string | null
+  fullComboOnly: boolean
+  clearHref: string
+}) => (
+  <form id={id} class="box filters" method="get" action={action} role="search">
+    <input type="search" name="name" value={name ?? ''} placeholder="プレイヤー名で検索" aria-label="プレイヤー名" />
+    <label class="chip">
+      <input type="checkbox" name="fc" value="1" checked={fullComboOnly} />
+      フルコンボのみ
+    </label>
+    <button class="button" type="submit">
+      検索
+    </button>
+    {(fullComboOnly || name !== null) && (
+      <a class="clear-link" href={clearHref}>
+        条件をクリア
+      </a>
+    )}
+  </form>
 )
 
 // ---- 曲一覧 ----
@@ -33,20 +64,22 @@ export type SongListProps = {
 const BestCell = ({ song, count, best }: { song: SongSummary; count: PlayerCount; best: BestScore | null }) => {
   const solo = count === 1 ? (best as SoloBestScore | null) : null
   return (
-    <div class={`best best-${count}`}>
-      <span class="best-label">{count}人</span>
-      {best === null ? (
-        <span class="muted">—</span>
-      ) : (
-        <a class="num" href={`${songPath(song.gameSongId)}${toQuery({ players: count })}`}>
-          {formatScore(best.score)}
-        </a>
-      )}
+    <div class="best">
+      <dt>{count}人</dt>
+      <dd>
+        {best === null ? (
+          <span class="muted">—</span>
+        ) : (
+          <a class="num" href={`${songPath(song.gameSongId)}${toQuery({ players: count })}`}>
+            {formatScore(best.score)}
+          </a>
+        )}
+      </dd>
       {solo && (
-        <div class="small">
+        <dd class="small muted">
           {solo.name}
-          {solo.tiedOthers > 0 && <span class="muted received"> ほか{solo.tiedOthers}名</span>}
-        </div>
+          {solo.tiedOthers > 0 && <span class="nowrap"> ほか{solo.tiedOthers}名</span>}
+        </dd>
       )}
     </div>
   )
@@ -54,59 +87,68 @@ const BestCell = ({ song, count, best }: { song: SongSummary; count: PlayerCount
 
 export const SongListPage = ({ songs, levels, q, level, sort, page, limit, total }: SongListProps) => {
   const hasFilter = q !== null || level !== null
+  const sortHref = (value: SongSort) => `/${toQuery({ q, level, sort: value === 'id' ? null : value })}`
   return (
-    <Layout title={SITE_NAME}>
-      <h1>曲一覧</h1>
-      <form class="filters" method="get" action="/" role="search">
-        <input type="search" name="q" value={q ?? ''} placeholder="曲名・アーティストで検索" aria-label="曲名・アーティスト" />
+    <Layout title="">
+      <h1 class="page-title">曲一覧</h1>
+      <form class="box filters" method="get" action="/" role="search">
+        {sort !== 'id' && <input type="hidden" name="sort" value={sort} />}
+        <input type="search" name="q" value={q ?? ''} placeholder="曲名・アーティスト名で検索" aria-label="曲名・アーティスト" />
         <select name="level" aria-label="難易度">
-          <option value="">すべての難易度</option>
+          <option value="">すべてのLv.</option>
           {levels.map((value) => (
             <option value={value} selected={value === level}>
-              難易度 {value}
+              Lv.{value}
             </option>
           ))}
         </select>
-        <select name="sort" aria-label="並べ替え">
-          <option value="id" selected={sort === 'id'}>
-            曲番順
-          </option>
-          <option value="level" selected={sort === 'level'}>
-            難易度順
-          </option>
-        </select>
-        <button type="submit">検索</button>
-        {hasFilter && <a href="/">条件をクリア</a>}
+        <button class="button" type="submit">
+          検索
+        </button>
+        <nav class="chips" aria-label="並べ替え">
+          <a class={sort === 'id' ? 'chip active' : 'chip'} href={sortHref('id')}>
+            No.
+          </a>
+          <a class={sort === 'level' ? 'chip active' : 'chip'} href={sortHref('level')}>
+            Lv.
+          </a>
+        </nav>
+        {hasFilter && (
+          <a class="clear-link" href={`/${toQuery({ sort: sort === 'id' ? null : sort })}`}>
+            条件をクリア
+          </a>
+        )}
       </form>
 
       {songs.length === 0 ? (
-        <p class="empty">{hasFilter ? '条件に一致する曲はありません' : '曲はまだ登録されていません'}</p>
+        <p class="empty-box">{hasFilter ? '条件に一致する曲がありません' : '曲はまだ登録されていません'}</p>
       ) : (
-        <ul class="song-list">
-          <li class="song-row song-head" aria-hidden="true">
-            <span class="song-id">曲番</span>
-            <span class="song-title">曲名</span>
-            <span class="song-level">難易度</span>
-            {PLAYER_COUNTS.map((count) => (
-              <span class={`best-${count}`}>{count}人 最高</span>
-            ))}
-          </li>
+        <ul class="song-grid">
           {songs.map((song) => (
-            <li class="song-row">
-              <span class="song-id num muted">{song.gameSongId}</span>
-              <div class="song-title">
-                <a href={songPath(song.gameSongId)}>{song.title}</a>
-                {song.artist !== null && <div class="muted small">{song.artist}</div>}
+            <li class="box song-card">
+              <div class="song-head">
+                <span class="song-no num">No.{song.gameSongId}</span>
+                <span class="song-level">Lv.{song.level ?? '—'}</span>
               </div>
-              <span class="song-level">{song.level ?? '—'}</span>
-              {PLAYER_COUNTS.map((count) => (
-                <BestCell song={song} count={count} best={song.bestScores[String(count) as keyof BestScores]} />
-              ))}
+              <a class="song-title" href={songPath(song.gameSongId)} title={song.title}>
+                {song.title}
+              </a>
+              <div class="song-artist">{song.artist ?? '—'}</div>
+              <dl class="bests" aria-label="人数別の最高スコア">
+                {PLAYER_COUNTS.map((count) => (
+                  <BestCell song={song} count={count} best={song.bestScores[String(count) as keyof BestScores]} />
+                ))}
+              </dl>
             </li>
           ))}
         </ul>
       )}
-      <Pagination page={page} limit={limit} total={total} href={(p) => `/${toQuery({ q, level, sort: sort === 'id' ? null : sort, page: pageParam(p) })}`} />
+      <Pagination
+        page={page}
+        limit={limit}
+        total={total}
+        href={(p) => `/${toQuery({ q, level, sort: sort === 'id' ? null : sort, page: pageParam(p) })}`}
+      />
     </Layout>
   )
 }
@@ -124,62 +166,60 @@ export type SongRankingProps = {
 
 const emptyMessage = (filtered: boolean) => (filtered ? '条件に一致する記録はありません' : '記録はまだありません')
 
-export const SongRankingPage = ({ song, rankings, selected, fullComboOnly, name, limit }: SongRankingProps) => {
-  const filtered = fullComboOnly || name !== null
-  return (
-    <Layout title={song.title}>
-      <h1>{song.title}</h1>
-      <SongMeta song={song} />
-      <form id="filters" class="filters" method="get" action={songPath(song.gameSongId)} role="search">
-        <input type="search" name="name" value={name ?? ''} placeholder="プレイヤー名で検索" aria-label="プレイヤー名" />
-        <label class="check">
-          <input type="checkbox" name="fc" value="1" checked={fullComboOnly} />
-          フルコンボのみ
-        </label>
-        <button type="submit">検索</button>
-        {filtered && <a href={`${songPath(song.gameSongId)}${toQuery({ players: selected === 1 ? null : selected })}`}>条件をクリア</a>}
-      </form>
+export const SongRankingPage = ({ song, rankings, selected, fullComboOnly, name, limit }: SongRankingProps) => (
+  <Layout title={song.title}>
+    <h1 class="page-title">{song.title}</h1>
+    <SongMeta song={song} />
+    <RankingFilters
+      id="filters"
+      action={songPath(song.gameSongId)}
+      name={name}
+      fullComboOnly={fullComboOnly}
+      clearHref={`${songPath(song.gameSongId)}${toQuery({ players: selected === 1 ? null : selected })}`}
+    />
 
-      <div class="rankings">
-        {/* 狭い画面のタブ。検索フォームと一緒に送信し、選択中の人数を保つ */}
+    <div class="rankings">
+      {/* 狭い画面のタブ。検索フォームと一緒に送信し、選択中の人数を保つ */}
+      {PLAYER_COUNTS.map((count) => (
+        <input
+          class="tab-input"
+          type="radio"
+          id={`tab-${count}`}
+          name="players"
+          value={String(count)}
+          form="filters"
+          checked={count === selected}
+        />
+      ))}
+      <div class="tabs chips" role="presentation">
         {PLAYER_COUNTS.map((count) => (
-          <input
-            class="tab-input"
-            type="radio"
-            id={`tab-${count}`}
-            name="players"
-            value={String(count)}
-            form="filters"
-            checked={count === selected}
-          />
+          <label class="chip" for={`tab-${count}`}>
+            {count}人
+          </label>
         ))}
-        <div class="tabs" role="presentation">
-          {PLAYER_COUNTS.map((count) => (
-            <label for={`tab-${count}`}>{count}人</label>
-          ))}
-        </div>
-        <div class="panels">
-          {PLAYER_COUNTS.map((count) => {
-            const ranking = rankings.get(count)!
-            return (
-              <section class={`panel panel-${count}`} aria-label={`${count}人ランキング`}>
-                <h2>{count}人</h2>
-                <RankingTable entries={ranking.entries} emptyMessage={emptyMessage(filtered)} />
-                {ranking.total > limit && (
-                  <p class="more">
-                    <a href={`${songPath(song.gameSongId)}/players/${count}${toQuery({ fc: fullComboOnly, name })}`}>
-                      すべて見る（{ranking.total}件）
-                    </a>
-                  </p>
-                )}
-              </section>
-            )
-          })}
-        </div>
       </div>
-    </Layout>
-  )
-}
+      <div class="panels">
+        {PLAYER_COUNTS.map((count) => {
+          const ranking = rankings.get(count)!
+          return (
+            <section class={`box panel panel-${count}`} aria-label={`${count}人ランキング`}>
+              <h2 class="panel-title">{count}人</h2>
+              <RankingTable entries={ranking.entries} emptyMessage={emptyMessage(fullComboOnly || name !== null)} />
+              {ranking.total > limit && (
+                <a
+                  class="panel-more"
+                  href={`${songPath(song.gameSongId)}/players/${count}${toQuery({ fc: fullComboOnly, name })}`}
+                >
+                  すべて見る（{ranking.total}件）
+                </a>
+              )}
+            </section>
+          )
+        })}
+      </div>
+    </div>
+  </Layout>
+)
 
 // ---- 人数別ランキング（ページ送り） ----
 
@@ -195,26 +235,19 @@ export type PlayerRankingProps = {
 
 export const PlayerRankingPage = ({ song, players, ranking, fullComboOnly, name, page, limit }: PlayerRankingProps) => {
   const path = `${songPath(song.gameSongId)}/players/${players}`
-  const filtered = fullComboOnly || name !== null
   return (
     <Layout title={`${song.title}（${players}人）`}>
-      <p class="small">
-        <a href={`${songPath(song.gameSongId)}${toQuery({ players, fc: fullComboOnly, name })}`}>← 1〜4人のランキングへ</a>
-      </p>
-      <h1>
+      <a class="back-link" href={`${songPath(song.gameSongId)}${toQuery({ players, fc: fullComboOnly, name })}`}>
+        ← 1〜4人のランキングへ
+      </a>
+      <h1 class="page-title">
         {song.title}（{players}人）
       </h1>
       <SongMeta song={song} />
-      <form class="filters" method="get" action={path} role="search">
-        <input type="search" name="name" value={name ?? ''} placeholder="プレイヤー名で検索" aria-label="プレイヤー名" />
-        <label class="check">
-          <input type="checkbox" name="fc" value="1" checked={fullComboOnly} />
-          フルコンボのみ
-        </label>
-        <button type="submit">検索</button>
-        {filtered && <a href={path}>条件をクリア</a>}
-      </form>
-      <RankingTable entries={ranking.entries} emptyMessage={emptyMessage(filtered)} />
+      <RankingFilters action={path} name={name} fullComboOnly={fullComboOnly} clearHref={path} />
+      <section class="box">
+        <RankingTable entries={ranking.entries} emptyMessage={emptyMessage(fullComboOnly || name !== null)} />
+      </section>
       <Pagination
         page={page}
         limit={limit}
@@ -229,10 +262,14 @@ export const PlayerRankingPage = ({ song, players, ranking, fullComboOnly, name,
 
 export const ErrorPage = ({ title, message }: { title: string; message: string }) => (
   <Layout title={title}>
-    <h1>{title}</h1>
-    <p>{message}</p>
-    <p>
-      <a href="/">曲一覧へ戻る</a>
-    </p>
+    <div class="box filters">
+      <div>
+        <h1 class="page-title">{title}</h1>
+        <p>{message}</p>
+        <a class="button button-outline" href="/">
+          曲一覧へ戻る
+        </a>
+      </div>
+    </div>
   </Layout>
 )
