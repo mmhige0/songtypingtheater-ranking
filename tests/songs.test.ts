@@ -1,7 +1,8 @@
 import { env } from 'cloudflare:workers'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import app from '../src/index'
 import { fetchBestScores } from '../src/lib/ranking'
+import { SONG_CACHE_TTL_MS } from '../src/lib/song-query'
 import { resetDb } from './helpers'
 import { at, insertPlay, insertPlayers, insertSong } from './view-helpers'
 
@@ -82,6 +83,46 @@ describe('GET /api/v1/songs', () => {
     for (const query of ['?sort=title', '?dir=up', '?level=abc', '?limit=0', '?page=-1', `?q=${'x'.repeat(101)}`]) {
       expect((await get(`/api/v1/songs${query}`)).status, query).toBe(400)
     }
+  })
+
+  it('serves the cached song list until the TTL passes', async () => {
+    expect((await listSongs()).total).toBe(4)
+    await insertSong('500', 'Late Song')
+    expect((await listSongs()).total).toBe(4)
+
+    const now = Date.now()
+    const spy = vi.spyOn(Date, 'now').mockReturnValue(now + SONG_CACHE_TTL_MS + 1)
+    try {
+      expect((await listSongs('?q=Late')).songs.map((s) => s.gameSongId)).toEqual(['500'])
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  it('loads the song list again after a failed load', async () => {
+    const spy = vi.spyOn(env.DB, 'prepare').mockImplementationOnce(() => {
+      throw new Error('D1 unavailable')
+    })
+    try {
+      expect((await get('/api/v1/songs')).status).toBe(500)
+    } finally {
+      spy.mockRestore()
+    }
+    expect((await listSongs()).total).toBe(4)
+  })
+
+  it('ignores case only for ASCII letters, like SQLite lower()', async () => {
+    await insertSong('020', 'ＦＵＬＬ été')
+    const search = (q: string) => listSongs(`?q=${encodeURIComponent(q)}`)
+    expect((await search('ｆｕｌｌ')).total).toBe(0)
+    expect((await search('ÉTÉ')).total).toBe(0)
+    expect((await search('ＦＵＬＬ été')).songs.map((s) => s.gameSongId)).toEqual(['020'])
+  })
+
+  it('orders song ids with the same number by their text', async () => {
+    await insertSong('0010', 'Padded')
+    expect((await listSongs()).songs.map((s) => s.gameSongId)).toEqual(['002', '0010', '010', '999', '1000'])
+    expect((await listSongs('?dir=desc')).songs.map((s) => s.gameSongId)).toEqual(['1000', '999', '010', '0010', '002'])
   })
 })
 

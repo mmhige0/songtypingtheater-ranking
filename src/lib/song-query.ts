@@ -20,20 +20,69 @@ const toSummary = (row: SongRow): SongSummary => ({
   level: row.level,
 })
 
-// 曲番号順は4桁以上・先頭ゼロ混在でも数値順（索引song_status_game_song_number_idxと同じ式）。
-// 難易度順は降順でも難易度未設定を最後にし、同じ難易度の中は曲番号の昇順
-const orderBy = (sort: SongSort, dir: SortDir) => {
-  const d = dir === 'desc' ? ' DESC' : ''
-  return sort === 'id'
-    ? `CAST(game_song_id AS INTEGER)${d}, game_song_id${d}`
-    : `level_sort_value IS NULL, level_sort_value${d}, CAST(game_song_id AS INTEGER), game_song_id`
+// 曲一覧は閲覧のたびに全件走査となりD1の読み取り行数の大半を占めていたため、承認済みの全曲を
+// isolateのメモリに保持して絞り込み・並べ替えはJSで行う。曲の登録・更新は最大TTLの間反映されない
+export const SONG_CACHE_TTL_MS = 5 * 60 * 1000
+
+type CachedSong = SongSummary & { levelSortValue: number | null; songNumber: number }
+
+// リクエスト間で共有するのは読み込み済みのデータだけ。読み込み中のPromiseを共有すると、
+// 読み込んだリクエストが切断でキャンセルされたとき後続が完了しないPromiseを待ち続けるため
+let songCache: { songs: CachedSong[]; expiresAt: number } | null = null
+let generation = 0
+
+// テスト用。DBの中身を入れ替えたときに呼ぶ
+export const clearSongCache = () => {
+  songCache = null
+  generation++
 }
 
-// 曲番号・曲名・アーティストの部分一致（英字の大文字・小文字は区別しない）は全件走査を許容する
-const SEARCH_WHERE = `status = 'approved'
-  AND (?1 IS NULL OR instr(game_song_id, ?1) > 0 OR instr(lower(title), lower(?1)) > 0
-    OR instr(lower(coalesce(artist, '')), lower(?1)) > 0)
-  AND (?2 IS NULL OR level = ?2)`
+const loadApprovedSongs = async (db: D1Database): Promise<CachedSong[]> => {
+  if (songCache && Date.now() < songCache.expiresAt) return songCache.songs
+  const loadedGeneration = generation
+  const { results } = await db
+    .prepare(`SELECT id, game_song_id, title, artist, level, level_sort_value FROM song WHERE status = 'approved'`)
+    .all<SongRow & { level_sort_value: number | null }>()
+  const songs = results.map((row) => ({
+    ...toSummary(row),
+    levelSortValue: row.level_sort_value,
+    songNumber: Number(row.game_song_id),
+  }))
+  // 読み込み中にclearSongCacheされた場合は古い結果を残さない
+  if (loadedGeneration === generation) songCache = { songs, expiresAt: Date.now() + SONG_CACHE_TTL_MS }
+  return songs
+}
+
+// SQLiteのlower()と同じく英字A〜Zだけを小文字にする（全角英字等は区別したまま）
+const asciiLower = (s: string) => s.replace(/[A-Z]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 32))
+
+// 曲番号・曲名・アーティストの部分一致（英字の大文字・小文字は区別しない）
+const matches = (song: CachedSong, q: string | null, level: string | null) => {
+  if (level !== null && song.level !== level) return false
+  if (q === null) return true
+  const lq = asciiLower(q)
+  return (
+    song.gameSongId.includes(q) || asciiLower(song.title).includes(lq) || asciiLower(song.artist ?? '').includes(lq)
+  )
+}
+
+const compare = (a: number | string, b: number | string) => (a < b ? -1 : a > b ? 1 : 0)
+
+// 曲番号順は4桁以上・先頭ゼロ混在でも数値順。
+// 難易度順は降順でも難易度未設定を最後にし、同じ難易度の中は曲番号の昇順
+const byId = (a: CachedSong, b: CachedSong) =>
+  compare(a.songNumber, b.songNumber) || compare(a.gameSongId, b.gameSongId)
+
+const songComparator = (sort: SongSort, dir: SortDir) => {
+  const sign = dir === 'desc' ? -1 : 1
+  if (sort === 'id') return (a: CachedSong, b: CachedSong) => sign * byId(a, b)
+  return (a: CachedSong, b: CachedSong) => {
+    if (a.levelSortValue === null || b.levelSortValue === null) {
+      return compare(a.levelSortValue === null ? 1 : 0, b.levelSortValue === null ? 1 : 0) || byId(a, b)
+    }
+    return sign * compare(a.levelSortValue, b.levelSortValue) || byId(a, b)
+  }
+}
 
 export const searchSongs = async (
   db: D1Database,
@@ -46,17 +95,13 @@ export const searchSongs = async (
     offset,
   }: { q: string | null; level: string | null; sort: SongSort; dir: SortDir; limit: number; offset: number },
 ) => {
-  const [page, count] = await db.batch<unknown>([
-    db
-      .prepare(
-        `SELECT id, game_song_id, title, artist, level FROM song WHERE ${SEARCH_WHERE} ORDER BY ${orderBy(sort, dir)} LIMIT ?3 OFFSET ?4`,
-      )
-      .bind(q, level, limit, offset),
-    db.prepare(`SELECT COUNT(*) AS total FROM song WHERE ${SEARCH_WHERE}`).bind(q, level),
-  ])
+  const matched = (await loadApprovedSongs(db)).filter((song) => matches(song, q, level))
+  matched.sort(songComparator(sort, dir))
   return {
-    songs: (page!.results as SongRow[]).map(toSummary),
-    total: (count!.results[0] as { total: number }).total,
+    songs: matched
+      .slice(offset, offset + limit)
+      .map(({ id, gameSongId, title, artist, level }) => ({ id, gameSongId, title, artist, level })),
+    total: matched.length,
   }
 }
 
