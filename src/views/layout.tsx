@@ -140,8 +140,10 @@ input[type=search]:focus-visible, select:focus-visible {
 }
 /* フルコンボの王冠 */
 .fc { display: inline-flex; flex: none; vertical-align: -0.125em; color: hsl(var(--gold)); }
+/* 参加者の名前は「・」でつないで横に並べ、入りきらなければ名前の単位で折り返す（1行に収まらない名前だけ途中で折る） */
 .participants { margin: 0; padding: 0; list-style: none; }
-.participants li { min-width: 0; overflow-wrap: anywhere; }
+.participants li { display: inline-block; max-width: 100%; overflow-wrap: anywhere; }
+.participants li:not(:last-child)::after { content: "・"; }
 .pagination { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px; margin: 24px 0 0; }
 .back-link { display: inline-block; margin-bottom: 12px; font-size: .875rem; text-decoration: none; }
 
@@ -191,9 +193,8 @@ table.songs { width: 100%; min-width: 960px; border-collapse: collapse; table-la
 .best-link { display: block; min-width: 0; color: hsl(var(--foreground)); }
 .best-empty { color: hsl(var(--muted-foreground)); }
 .best-link .participants { font-weight: 700; }
-.best-link .participants li { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .best-tied { display: block; }
-.best-score { display: inline-flex; align-items: center; gap: 4px; margin-top: 2px; font-size: .8125rem; color: hsl(var(--muted-foreground)); }
+.best-score { display: inline-flex; align-items: center; gap: 4px; margin-top: 2px; font-size: 1rem; font-weight: 600; }
 .best-link:hover .participants, .best-link:hover .best-score { color: hsl(var(--primary)); }
 /* JSが有効なら無限スクロール、無効なら前へ・次へのリンク */
 .load-more { display: none; }
