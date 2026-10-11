@@ -15,7 +15,7 @@
 - 認証はクライアント生成の個別installationToken方式で合意。ゲーム側がRandomNumberGeneratorで32バイトを生成し、Base64URL（パディングなし43文字）にしてplayerIdとともに通信前に永続保存する。ホストがBearer認証で送る。共通登録キー方式は採用しない。
 - 登録は新規201、同一ID・同一token再送200、同一ID・異なるtoken409、失効済みの同一token401。別IDで同じtokenは409。上書き・再有効化しない。成功応答にtokenは含めない。
 - tokenはSHA-256ハッシュのみ保存。復旧用暗号化token・登録用秘密・暗号鍵管理・7日削除ジョブは不要。通信失敗・5xxは同じ値で再送し、429はRetry-Afterに従う。詳細は[初回登録・再送仕様](auth-options.md)。
-- TAIPEN ONかつ4人の記録は残す。ONかつ1〜3人は拒否。
+- v1ではTAIPEN ONの記録はゲーム側で送信しない（ランキング対象外）。送信する記録の`isTaipen`は常にfalse。API項目・サーバーの検証（ONは4人のみ受理）は将来に備えて残す。
 - 通常とサバイバルを分けない。対戦・Debug等の送信抑止はゲーム側。
 - PhotonのMaster Client交代・参加者スナップショット管理はゲーム側の責務。Web側でPhoton固有の処理は実装しない。
 - 新規APIで全受理プレイを保存。playId一意制約とトランザクションで同時再送も重複防止。
