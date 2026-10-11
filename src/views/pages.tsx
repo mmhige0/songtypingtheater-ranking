@@ -168,8 +168,8 @@ export const SongListPage = ({ songs, q, sort, dir, page, limit, total }: SongLi
                 <col class="col-no" />
                 <col class="col-title" />
                 <col class="col-level" />
-                {PLAYER_COUNTS.map(() => (
-                  <col class="col-best" />
+                {PLAYER_COUNTS.map((count) => (
+                  <col class={`col-best-${count}`} />
                 ))}
               </colgroup>
               <thead>

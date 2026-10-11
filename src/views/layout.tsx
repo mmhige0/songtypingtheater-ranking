@@ -140,9 +140,9 @@ input[type=search]:focus-visible, select:focus-visible {
 }
 /* フルコンボの王冠 */
 .fc { display: inline-flex; flex: none; vertical-align: -0.125em; color: hsl(var(--gold)); }
-/* 参加者の名前は「・」でつないで横に並べ、入りきらなければ名前の単位で折り返す（1行に収まらない名前だけ途中で折る） */
-.participants { margin: 0; padding: 0; list-style: none; }
-.participants li { display: inline-block; max-width: 100%; overflow-wrap: anywhere; }
+/* 参加者の名前は「・」でつないで1行に並べ、はみ出す分は「…」で省略する */
+.participants { overflow: hidden; margin: 0; padding: 0; list-style: none; text-overflow: ellipsis; white-space: nowrap; }
+.participants li { display: inline; }
 .participants li:not(:last-child)::after { content: "・"; }
 .pagination { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px; margin: 24px 0 0; }
 .back-link { display: inline-block; margin-bottom: 12px; font-size: .875rem; text-decoration: none; }
@@ -163,8 +163,10 @@ input[type=search]:focus-visible, select:focus-visible {
 #sort-state { display: contents; }
 .result-count { margin: 0 0 8px; }
 .table-wrap { overflow-x: auto; }
-table.songs { width: 100%; min-width: 960px; border-collapse: collapse; table-layout: fixed; font-size: .9375rem; }
-.songs .col-no { width: 4.5rem; } .songs .col-best { width: 9.5rem; } .songs .col-level { width: 4rem; }
+table.songs { width: 100%; min-width: 1080px; border-collapse: collapse; table-layout: fixed; font-size: .9375rem; }
+.songs .col-no { width: 4.5rem; } /* 人数が多いほど名前が長いので広くする（曲別ランキングの4列も同じ比率） */
+.songs .col-best-1 { width: 9.5rem; } .songs .col-best-2 { width: 11rem; }
+.songs .col-best-3 { width: 12.5rem; } .songs .col-best-4 { width: 14rem; } .songs .col-level { width: 4rem; }
 .songs th {
   padding: 12px; font-size: .75rem; font-weight: 600; letter-spacing: .025em; text-align: left;
   color: hsl(var(--muted-foreground)); white-space: nowrap;
@@ -215,7 +217,7 @@ table.songs { width: 100%; min-width: 960px; border-collapse: collapse; table-la
 .panel-title { display: none; padding: 16px 16px 4px; font-size: 1.125rem; }
 @media (min-width: 1024px) {
   .tabs { display: none; }
-  .panels { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px; align-items: start; }
+  .panels { display: grid; grid-template-columns: minmax(0, 9.5fr) minmax(0, 11fr) minmax(0, 12.5fr) minmax(0, 14fr); gap: 20px; align-items: start; }
   .panel { display: block; }
   .panel-title { display: block; }
 }

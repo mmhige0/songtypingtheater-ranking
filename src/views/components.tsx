@@ -34,11 +34,11 @@ export const FullComboMark = () => (
   </span>
 )
 
-// 参加者の名前（色は表示しない。並びは色のR→B→Y→G順）
+// 参加者の名前を1行で（色は表示しない。並びは色のR→B→Y→G順）。はみ出す分は省略し、全員の名前はtitleで出す
 export const Participants = ({ participants }: { participants: Participant[] }) => (
-  <ul class="participants">
+  <ul class="participants" title={participants.map((p) => p.name).join('・')}>
     {participants.map((p) => (
-      <li title={p.name}>{p.name}</li>
+      <li>{p.name}</li>
     ))}
   </ul>
 )
