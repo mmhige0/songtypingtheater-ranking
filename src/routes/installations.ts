@@ -4,6 +4,7 @@ import { Hono } from 'hono'
 import { isDuplicateKeyError } from '../db/errors'
 import { players } from '../db/schema'
 import { ApiError, expectExactObject, invalidRequest, readJsonBody } from '../lib/http'
+import { limitByIp } from '../lib/rate-limit'
 import { hashInstallationToken, isValidInstallationToken } from '../lib/token'
 import { normalizeUuidV4 } from '../lib/uuid'
 
@@ -14,6 +15,7 @@ installations.use('*', async (c, next) => {
   await next()
   c.header('Cache-Control', 'no-store')
 })
+installations.use('*', limitByIp((env) => env.INSTALLATIONS_IP_LIMITER))
 
 installations.post('/', async (c) => {
   const body = expectExactObject(await readJsonBody(c), ['playerId', 'installationToken'])

@@ -14,7 +14,7 @@ app.route('/api/v1/plays', playsRoute)
 app.notFound((c) => errorResponse(c, 404, 'NOT_FOUND', '見つかりません'))
 
 app.onError((error, c) => {
-  if (error instanceof ApiError) return errorResponse(c, error.status, error.code, error.message)
+  if (error instanceof ApiError) return errorResponse(c, error.status, error.code, error.message, error.headers)
   // 応答には詳細を出さない。ログには最も内側の原因だけを残す
   // （Drizzleのエラー本文はクエリのパラメーター＝プレイヤー名等を含むため、包んだ側は出さない）
   let cause: unknown = error

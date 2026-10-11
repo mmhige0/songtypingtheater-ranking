@@ -71,6 +71,8 @@ D1_ERROR: UNIQUE constraint failed: play.play_id: SQLITE_CONSTRAINT (extended: S
 - 期間は10秒または60秒しか選べない前提で、元の案（10分100、1時間20）に近い値にした。値は運用設定として実測後に調整する。
 - Workers Rate Limitingはデータセンター単位・結果整合の近似的な制限であり、全体で厳密な回数にはならない（公式に「accurate accounting systemとして使わない」と明記）。
 - 拒否時は429 RATE_LIMITEDを返す。`limit()`は成否しか返さず残り時間を取得できないため、Retry-Afterには設定した期間（60）を返す。
+- 設定は`wrangler.jsonc`の`ratelimits`（`PLAYS_IP_LIMITER`・`PLAYS_PLAYER_LIMITER`・`INSTALLATIONS_IP_LIMITER`）、判定は`src/lib/rate-limit.ts`。plays のIP単位は認証前（拒否されるリクエストも数える）、プレイヤー単位は認証後に判定する。`CF-Connecting-IP`がない場合（ローカル実行）は全体を`unknown`として数える。
+- テストでは上限を緩めた設定で機能テストを行い、429の動作はテスト用のバインディングに差し替えて確認する。
 - 無料プランで利用できるかは公式ドキュメントに記載がない。最初のデプロイで実際に動作を確認する。
 - 利用できない場合は、D1にキー・時間窓ごとの件数を数えるテーブルを置く固定窓カウンターへ切り替える。1リクエスト1行の書き込みで、無料枠（1日10万行）に収まる。
 
@@ -144,5 +146,5 @@ vitest.config.ts
 1. `npx wrangler login`
 2. `npx wrangler d1 create songtypingtheater-ranking`を実行し、表示された`database_id`で`wrangler.jsonc`の仮の値を置き換える。
 3. `npm run db:migrate:remote`でマイグレーションを適用する。
-4. `npx wrangler secret put ADMIN_API_KEY`で管理用キーを設定する（曲登録API実装後）。
-5. `npm run deploy`でデプロイする。
+4. 管理用キーを生成し（例: `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"`）、`npx wrangler secret put ADMIN_API_KEY`で設定する。キーは登録スクリプトで使うため、リポジトリ外に安全に保管する。
+5. `npm run deploy`でデプロイする。Workersのログはダッシュボードで確認できる（`observability`を有効化済み）。

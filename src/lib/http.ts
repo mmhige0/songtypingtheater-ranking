@@ -28,18 +28,26 @@ export class ApiError extends Error {
     readonly status: ContentfulStatusCode,
     readonly code: ErrorCode,
     message: string,
+    readonly headers: Record<string, string> = {},
   ) {
     super(message)
   }
 }
 
-export const errorResponse = (c: Context, status: ContentfulStatusCode, code: ErrorCode, message: string) =>
+export const errorResponse = (
+  c: Context,
+  status: ContentfulStatusCode,
+  code: ErrorCode,
+  message: string,
+  headers: Record<string, string> = {},
+) =>
   c.json(
     {
       error: { code, message, retryable: status === 429 || status >= 500 },
       requestId: crypto.randomUUID(),
     },
     status,
+    headers,
   )
 
 export const invalidRequest = (message: string) => new ApiError(400, 'INVALID_REQUEST', message)
