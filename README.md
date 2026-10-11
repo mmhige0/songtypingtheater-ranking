@@ -43,6 +43,16 @@ npm run check             # lint・型チェック・テスト
 Node.js 22を使用。Cloudflare上の初期設定は[システム構成](docs/architecture.md#cloudflare上の初期設定管理者が実施)を参照。
 ローカルの`npm run dev`で曲登録APIを使う場合は、`.dev.vars.example`を`.dev.vars`にコピーして`ADMIN_API_KEY`を設定する。
 
+## デプロイ
+
+`main`へpushすると、GitHub Actions（[ci.yml](.github/workflows/ci.yml)）がlint・型チェック・テストの成功後に`wrangler deploy`で本番へデプロイする。PRではデプロイしない。
+
+- D1マイグレーションは自動適用しない。マイグレーションを含む変更は、`main`へpushする**前**に`npm run db:migrate:remote`で本番へ適用する（先にデプロイすると新しいコードが未作成のテーブル・列を参照して失敗する）。
+- `ADMIN_API_KEY`はWorkerのsecretとして設定済みのものを使う。CIからは変更しない。
+- 初回のみ、GitHubリポジトリのSettings → Secrets and variables → Actionsに以下を登録する。
+  - `CLOUDFLARE_API_TOKEN`: Cloudflareで作成したAPIトークン。テンプレート「Edit Cloudflare Workers」を使い、ゾーンは`kayomodoki.com`（独自ドメインのルート設定に必要）。
+  - `CLOUDFLARE_ACCOUNT_ID`: CloudflareのアカウントID。
+
 ## 曲の登録
 
 曲の登録・修正は管理者（運営者とゲーム開発者）が管理用キーを使って行う。新曲はゲームに公開する前に登録する（未登録の曲番の成績は`422 UNKNOWN_SONG`で失われる）。管理用キーは公開の場所に書かない。
