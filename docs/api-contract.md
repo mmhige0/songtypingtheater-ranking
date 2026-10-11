@@ -3,7 +3,7 @@
 更新日: 2026-10-11（日本時間）
 
 Unity/C#のホストからHTTPSでUTF-8 JSONを受信する。提示されたゲーム側仕様v1とレビュー回答を反映した設計文書であり、APIはまだ実装していない。
-初回登録の復旧方法・受付日時による先着判定・ゲームバージョン必須化は、以下の区分に従ってゲーム開発者と最終調整する。
+初回登録はクライアント生成token方式で合意済み。受付日時による先着判定・ゲームバージョン必須化は、以下の区分に従ってゲーム開発者と最終調整する。
 
 ## 対象・責務
 
@@ -19,20 +19,34 @@ Unity/C#のホストからHTTPSでUTF-8 JSONを受信する。提示されたゲ
 | メソッド | パス | 用途・状態 |
 |---|---|---|
 | POST | /api/v1/plays | 成績登録 |
-| POST | /api/v1/installations | 初回の送信トークン発行。復旧方法は調整中 |
+| POST | /api/v1/installations | クライアント生成の送信トークン登録。合意済み |
 
 ### 採用: 個別installationToken
 
-初回にPOST /api/v1/installationsでplayerIdを登録し、サーバーが発行したinstallationTokenを受け取る。
-ゲームはplayerIdとtokenを永続保存し、POST /playsに`Authorization: Bearer <installationToken>`を付ける。
-installationTokenは暗号学的乱数32バイト以上から生成し、有効期限なし・個別失効可能とする初期案。
-APIはtokenのハッシュと失効状態を持ち、tokenに紐づくplayerIdとhostPlayerIdを照合する。
-トークンをログ・応答調査情報・Photonへ出力しない。全参加者がホストへトークンを渡す必要はない。
+初回起動時にゲームがplayerId（UUIDv4）とinstallationTokenを生成し、API通信より前に両方を端末内へ永続保存する。
+tokenはRandomNumberGeneratorによる乱数32バイトをBase64URL（パディングなし43文字）にする。
+POST /api/v1/installationsのJSONにplayerIdとinstallationTokenを含めて登録する。
+APIは正規形式のtoken文字列のUTF-8バイト列に対するSHA-256ハッシュと失効状態を保存し、平文・復元可能な暗号化tokenは保存しない。
+成功応答はplayerIdとstatusだけを返し、tokenは返さない。Cache-Control: no-storeを指定する。
+
+| 登録条件 | 応答 |
+|---|---|
+| 新規登録 | 201、status=created |
+| 同一playerId・同一token、未失効 | 200、status=already_registered。既存情報は変更しない |
+| 同一playerId・異なるtoken | 409 PLAYER_ID_ALREADY_REGISTERED。上書きしない |
+| 同一playerId・同一token、失効済み | 401 REVOKED_TOKEN。再有効化しない |
+| 別playerIdで既登録tokenを再利用 | 409 TOKEN_ALREADY_REGISTERED。失効済みも再利用不可 |
+
+タイムアウト・通信切断・5xxは保存済みの同じID・tokenで再送する。429はRetry-Afterに従う。
+登録済みでも応答を失った場合は同じ値の再送で成功を確認できる。詳細な形式検証・同時登録・受入確認は[初回登録・再送仕様](auth-options.md)を参照する。
+registrationSecretや復旧用暗号化token・7日削除ジョブは設けない。セーブ消失によるtoken紛失は通信再送とは別問題であり、IDだけで再発行しない。
+
+ゲームはPOST /playsに`Authorization: Bearer <installationToken>`を付ける。
+APIはtokenに紐づくplayerIdとhostPlayerIdを照合する。tokenHashは一意とし、複数IDへの同じtokenの登録を拒否する。
+installationTokenは有効期限なし・個別失効可能とする既存の初期案を維持する。
+トークンをログ・応答調査情報・Photonのカスタムプロパティへ出力しない。全参加者がホストへトークンを渡す必要はない。
 公開の匿名登録は誰でも利用できるため、正規ゲームの証明にはならない。個別制限・失効のための方式である。
 共通登録キー方式は採用しない。
-
-初回登録の応答消失については、[初回登録の復旧検討](auth-options.md)にサーバー発行を維持する復旧案を記載。
-「成功応答で一度だけ渡し、同じplayerIdは409」のままでは採用しない。復旧用フィールドの追加はゲーム側との調整事項。
 
 ## 共通規則
 
@@ -144,7 +158,7 @@ JSONの空白・オブジェクトキー順は比較しない。colorは受理�
 
 400は形式・型・構造の不正、422は正しい型だが登録条件に合わない値。scoreの小数・文字列は400、整数の範囲外は422。
 全非再送エラーでretryable=false、429・5xxでtrueを返す。プロキシ由来の本文なしエラーや通信失敗もHTTPステータス・通信結果で扱う。
-初回登録の409や復旧規則は別文書を参照。
+初回登録の応答・再送規則は[初回登録・再送仕様](auth-options.md)を参照。
 
 ## 再送・保留キューの設計案
 
