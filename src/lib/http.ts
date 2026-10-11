@@ -34,11 +34,18 @@ export const errorResponse = (c: Context, status: ContentfulStatusCode, code: Er
 
 export const invalidRequest = (message: string) => new ApiError(400, 'INVALID_REQUEST', message)
 
-const isJsonContentType = (header: string | undefined) => {
+// application/jsonで、charsetを指定する場合はutf-8だけを受理する。
+// パラメーター値は引用符付き（charset="utf-8"）も有効（RFC 9110 5.6.6）
+export const isJsonContentType = (header: string | undefined) => {
   if (!header) return false
   const [mediaType, ...params] = header.split(';').map((part) => part.trim().toLowerCase())
   if (mediaType !== 'application/json') return false
-  return params.every((param) => !param.startsWith('charset=') || param === 'charset=utf-8')
+  return params.every((param) => {
+    if (!param.startsWith('charset=')) return true
+    const value = param.slice('charset='.length)
+    const unquoted = value.length >= 2 && value.startsWith('"') && value.endsWith('"') ? value.slice(1, -1) : value
+    return unquoted === 'utf-8'
+  })
 }
 
 const readBodyWithLimit = async (request: Request): Promise<Uint8Array> => {

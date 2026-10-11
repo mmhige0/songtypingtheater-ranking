@@ -129,6 +129,11 @@ describe('PUT /api/v1/admin/songs/:gameSongId', () => {
       await expectError(await put('001', SONG, { headers: { 'Content-Type': 'text/plain' } }), 415, 'UNSUPPORTED_MEDIA_TYPE')
     })
 
+    it('accepts a quoted charset parameter', async () => {
+      const res = await put('001', SONG, { headers: { 'Content-Type': 'application/json; charset="utf-8"' } })
+      expect(res.status).toBe(201)
+    })
+
     it('rejects a body over 16 KiB with 413', async () => {
       await expectError(await put('001', { ...SONG, title: 'あ'.repeat(6000) }), 413, 'PAYLOAD_TOO_LARGE')
     })
