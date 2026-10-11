@@ -8,8 +8,7 @@ DB製品に依存しない概念設計。テーブル名・型は提案。受理
 |---|---|---|
 | Song | gameSongId、title、artist、level、levelSortValue、lyricDataCreatorId（任意） | ゲーム曲IDを一意にする。表示文字列と難易度ソート値を分ける |
 | Player | playerId | セーブデータに保存する固定ID。認証情報ではない |
-| Installation | playerId、tokenHash、revokedAt、createdAt | 個別送信認証。playerIdは一意。通常の認証DBにtoken平文を保存しない |
-| RegistrationRecovery（検討案） | playerId、registrationSecretHash、encryptedToken、expiresAt | 初回登録の応答消失から復旧するための期間限定データ。auth-options.md参照 |
+| Installation | playerId、tokenHash、revokedAt、createdAt | クライアント生成tokenの個別送信認証。playerIdとtokenHashはそれぞれ一意。正規token文字列のUTF-8に対するSHA-256のみ保存し、平文・復元可能な暗号化tokenは保存しない |
 | Play | playId、songId、score、isFullCombo、isTaipen、receivedAt、gameVersion、hostPlayerId、playerCount、teamKey、source、excludedAt | 全受理記録保存。playIdは一意。FC・モード・バージョンは移行用にnull許容。teamKeyは必須の文字列列で、参加者IDから生成して保存する（非一意） |
 | PlayParticipant | playId、playerId、nameAtPlay、colorAtPlay、position | プレイ当時の名前・色を保持。playId+playerIdを一意にする |
 | LegacyIdentityMapping | 移行元の名前等、対応するplayerId、確認状態 | 旧記録と新IDの対応を管理する案。推測だけで同一人物と断定しない |
@@ -42,6 +41,8 @@ receivedAtで先着を判定するのは最終調整案であり、実際の達�
 - 比較用の元の登録値を保持する。管理者除外や曲情報の更新で再送判定が変わらないようにする。
 - 受信順と、playerIdをソートしたチーム判定用の順は分離する。
 - token失効はInstallation単位。プレイヤーID自体が認証になるわけではない。
+- Installation登録の同一ID・同一token再送は200、異なるtokenは409、失効済みの同一tokenは401。既存行を更新・再有効化しない。別IDで同じtokenの再利用も409。並行登録は一意制約とトランザクションで保護する。
+- 初回登録の応答消失はクライアントで事前保存したID・tokenの再送で対応し、復旧用テーブル・暗号鍵・期限削除ジョブは設けない。詳細は[初回登録・再送仕様](auth-options.md)を参照。
 - 拒否した成績はDBに保存しない。未送信キュー・運用用短期ログは全受理プレイ履歴と区別する。
 - 初期索引候補はsongId+playerCount+teamKey+score（チーム別集計）、songId+playerCount+score（ランキング取得）、参加者playerId。playIdは一意制約で索引を持つ。具体的な集計・索引はDB選定後に確認する。
 
