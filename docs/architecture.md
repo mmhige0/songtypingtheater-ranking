@@ -73,7 +73,7 @@ D1_ERROR: UNIQUE constraint failed: play.play_id: SQLITE_CONSTRAINT (extended: S
 - 拒否時は429 RATE_LIMITEDを返す。`limit()`は成否しか返さず残り時間を取得できないため、Retry-Afterには設定した期間（60）を返す。
 - 設定は`wrangler.jsonc`の`ratelimits`（`PLAYS_IP_LIMITER`・`PLAYS_PLAYER_LIMITER`・`INSTALLATIONS_IP_LIMITER`）、判定は`src/lib/rate-limit.ts`。plays のIP単位は認証前（拒否されるリクエストも数える）、プレイヤー単位は認証後に判定する。`CF-Connecting-IP`がない場合（ローカル実行）は全体を`unknown`として数える。
 - テストでは上限を緩めた設定で機能テストを行い、429の動作はテスト用のバインディングに差し替えて確認する。
-- 無料プランで利用できるかは公式ドキュメントに記載がない。最初のデプロイで実際に動作を確認する。
+- 無料プランで利用できるかは公式ドキュメントに記載がない。デプロイ済みだが、実際に制限がかかる（429が返る）かは本番で確認する。
 - 利用できない場合は、D1にキー・時間窓ごとの件数を数えるテーブルを置く固定窓カウンターへ切り替える。1リクエスト1行の書き込みで、無料枠（1日10万行）に収まる。
 
 ## JSONの検証
@@ -117,12 +117,12 @@ API仕様は重複JSONキーの検出を求める。`JSON.parse`・`c.req.json()
 | D1エクスポート | wrangler CLIのみ。実行中は他のリクエストを待たせる | [D1 Import and export](https://developers.cloudflare.com/d1/best-practices/import-export-data/) |
 | Workers Rate Limiting | 期間は10秒または60秒のみ。`limit()`は成否を返す。データセンター単位・結果整合。無料プランでの利用可否は記載なし | [Rate Limiting](https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/) |
 
-### 実装時に確認する項目
+### デプロイ後に確認する項目
 
 | 項目 | 確認方法 |
 |---|---|
-| Workers Rate Limitingの無料プランでの利用可否 | 最初のデプロイで動作確認。使えなければD1カウンターへ切り替え |
-| 一意制約違反の判別方法 | ローカルD1では確認済み（[D1でのトランザクション方針](#d1でのトランザクション方針)）。Drizzle経由のエラーの包まれ方はAPI実装時に確認 |
+| Workers Rate Limitingの無料プランでの利用可否 | デプロイ済み。本番で429が返るかを確認し、使えなければD1カウンターへ切り替え |
+| 一意制約違反の判別方法 | ローカルD1でDrizzle経由も含め確認済み（[D1でのトランザクション方針](#d1でのトランザクション方針)、causeをたどって判別する`src/db/errors.ts`）。本番D1で同じ形式になるかは確認する |
 
 ## リポジトリ構成
 
@@ -139,7 +139,7 @@ drizzle.config.ts
 vitest.config.ts
 ```
 
-`routes/`・`lib/`・`scripts/`はAPI実装時に追加する。スキーマを変更したら`npm run db:generate`でマイグレーションSQLを生成する。
+スキーマを変更したら`npm run db:generate`でマイグレーションSQLを生成する。
 
 ## Cloudflare上の初期設定（管理者が実施）
 
