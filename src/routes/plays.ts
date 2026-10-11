@@ -5,6 +5,7 @@ import { isDuplicateKeyError } from '../db/errors'
 import { PLAYER_COLORS, playParticipants, players, plays, songs } from '../db/schema'
 import { ApiError, expectExactObject, invalidRequest, readJsonBody } from '../lib/http'
 import { requirePlayerToken, type PlayerAuthVariables } from '../lib/player-auth'
+import { limitByIp, limitByPlayer } from '../lib/rate-limit'
 import { isValidGameSongId } from '../lib/song'
 import { toTeamKey } from '../lib/team-key'
 import { isValidText } from '../lib/text'
@@ -89,7 +90,10 @@ const parsePlayInput = (body: unknown): PlayInput => {
 
 export const playsRoute = new Hono<{ Bindings: Env; Variables: PlayerAuthVariables }>()
 
+// IP単位は認証前（拒否されるリクエストも数える）、プレイヤー単位は認証後に制限する
+playsRoute.use('*', limitByIp((env) => env.PLAYS_IP_LIMITER))
 playsRoute.use('*', requirePlayerToken)
+playsRoute.use('*', limitByPlayer((env) => env.PLAYS_PLAYER_LIMITER))
 
 playsRoute.post('/', async (c) => {
   const input = parsePlayInput(await readJsonBody(c))
