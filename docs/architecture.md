@@ -42,10 +42,11 @@ D1はアプリから対話的にBEGIN〜COMMITを発行できず、`batch()`に�
 
 公式ドキュメントでは`batch()`は「Batched statements are SQL transactions」とされ、文は順に実行され、途中の失敗で全体がロールバックされる。ローカルD1のテストでも、`batch()`の途中の失敗で先行する挿入が取り消されることを確認した（`tests/schema.test.ts`）。
 
-一意制約違反は、ローカルD1で次の形式のエラーメッセージになることを確認した。判別にはメッセージに`SQLITE_CONSTRAINT_UNIQUE`が含まれるかを使い、テーブル・列名で対象の制約を見分ける。Drizzle経由ではエラーが包まれるため、`cause`も確認する。
+重複による制約違反は、ローカルD1で次の形式のエラーメッセージになることを確認した。一意インデックス（gameSongId・tokenHash等）の違反は`SQLITE_CONSTRAINT_UNIQUE`、主キー（playId・playerId・参加者のplayId+playerId）の違反は`SQLITE_CONSTRAINT_PRIMARYKEY`になる。判別には両方を対象とし、メッセージの`<テーブル>.<列>`で対象の制約を見分ける。Drizzle経由ではエラーが包まれるため、`cause`も確認する。
 
 ```text
 D1_ERROR: UNIQUE constraint failed: song.game_song_id: SQLITE_CONSTRAINT (extended: SQLITE_CONSTRAINT_UNIQUE)
+D1_ERROR: UNIQUE constraint failed: play.play_id: SQLITE_CONSTRAINT (extended: SQLITE_CONSTRAINT_PRIMARYKEY)
 ```
 
 外部キー違反・CHECK制約違反もそれぞれ`FOREIGN KEY constraint failed`・`CHECK constraint failed`を含む。D1では外部キー制約が有効である。

@@ -28,7 +28,7 @@ const insertPlay = (playId: string, overrides: { isTaipen?: number | null; playe
       host_player_id, player_count, team_key)
      VALUES (?, 1, 123456, 1, ?, ?, '1.65', ?, ?, ?)`,
     playId,
-    overrides.isTaipen ?? 0,
+    'isTaipen' in overrides ? overrides.isTaipen : 0,
     NOW,
     HOST,
     overrides.playerCount ?? 2,
@@ -44,7 +44,9 @@ const insertParticipant = (playerId: string, color: string | null) =>
     color,
   )
 
-const UNIQUE_ERROR = /UNIQUE constraint failed/
+// 一意インデックスはSQLITE_CONSTRAINT_UNIQUE、主キーはSQLITE_CONSTRAINT_PRIMARYKEYになる
+const duplicateError = (target: string, kind: 'UNIQUE' | 'PRIMARYKEY') =>
+  new RegExp(`UNIQUE constraint failed: ${target.replaceAll('.', '\\.')}: .*SQLITE_CONSTRAINT_${kind}\\b`)
 const CHECK_ERROR = /CHECK constraint failed/
 
 beforeEach(async () => {
@@ -60,7 +62,7 @@ beforeEach(async () => {
 
 describe('song', () => {
   it('rejects duplicate gameSongId', async () => {
-    await expect(insertSong('001')).rejects.toThrow(UNIQUE_ERROR)
+    await expect(insertSong('001')).rejects.toThrow(duplicateError('song.game_song_id', 'UNIQUE'))
   })
 
   it('allows multiple songs without gameSongId', async () => {
@@ -94,8 +96,12 @@ describe('player', () => {
   it('rejects a tokenHash registered to another player', async () => {
     await insertRegistered('0b5c7a4e-1f2d-4e8a-9c3b-6d7e8f9a0b1c', 'a'.repeat(64))
     await expect(insertRegistered('1c6d8b5f-2e3a-4f9b-8d4c-7e8f9a0b1c2d', 'a'.repeat(64))).rejects.toThrow(
-      UNIQUE_ERROR,
+      duplicateError('player.token_hash', 'UNIQUE'),
     )
+  })
+
+  it('rejects duplicate playerId as a primary key violation', async () => {
+    await expect(insertPlayer(HOST)).rejects.toThrow(duplicateError('player.player_id', 'PRIMARYKEY'))
   })
 
   it('allows multiple legacy players without a token', async () => {
@@ -105,9 +111,9 @@ describe('player', () => {
 })
 
 describe('play', () => {
-  it('rejects duplicate playId', async () => {
+  it('rejects duplicate playId as a primary key violation', async () => {
     await insertPlay(PLAY)
-    await expect(insertPlay(PLAY)).rejects.toThrow(UNIQUE_ERROR)
+    await expect(insertPlay(PLAY)).rejects.toThrow(duplicateError('play.play_id', 'PRIMARYKEY'))
   })
 
   it('rejects TAIPEN with fewer than 4 players', async () => {
@@ -116,7 +122,11 @@ describe('play', () => {
   })
 
   it('allows unknown TAIPEN for migrated plays', async () => {
-    await expect(insertPlay(PLAY, { isTaipen: null, playerCount: 1 })).resolves.toBeDefined()
+    await insertPlay(PLAY, { isTaipen: null, playerCount: 1 })
+    const stored = await env.DB.prepare('SELECT is_taipen FROM play WHERE play_id = ?')
+      .bind(PLAY)
+      .first<number | null>('is_taipen')
+    expect(stored).toBeNull()
   })
 
   it('rejects a play whose song does not exist', async () => {
@@ -138,11 +148,15 @@ describe('play_participant', () => {
   })
 
   it('rejects the same player twice in one play', async () => {
-    await expect(insertParticipant(HOST, 'B')).rejects.toThrow(UNIQUE_ERROR)
+    await expect(insertParticipant(HOST, 'B')).rejects.toThrow(
+      duplicateError('play_participant.play_id, play_participant.player_id', 'PRIMARYKEY'),
+    )
   })
 
   it('rejects the same color twice in one play', async () => {
-    await expect(insertParticipant(GUEST, 'R')).rejects.toThrow(UNIQUE_ERROR)
+    await expect(insertParticipant(GUEST, 'R')).rejects.toThrow(
+      duplicateError('play_participant.play_id, play_participant.color_at_play', 'UNIQUE'),
+    )
   })
 
   it('rejects lowercase or missing colors', async () => {
@@ -167,7 +181,7 @@ describe('batch', () => {
       ).bind(PLAY, playerId, 'プレイヤーA', color)
 
     await expect(env.DB.batch([insertPlayStmt, participant(HOST, 'R'), participant(GUEST, 'R')])).rejects.toThrow(
-      UNIQUE_ERROR,
+      duplicateError('play_participant.play_id, play_participant.color_at_play', 'UNIQUE'),
     )
 
     const count = await env.DB.prepare('SELECT COUNT(*) AS n FROM play').first<number>('n')
