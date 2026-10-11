@@ -7,15 +7,15 @@ DB製品に依存しない概念設計。テーブル名・型は提案。物理
 | エンティティ | 主な情報 | 制約・意味 |
 |---|---|---|
 | Song | id、gameSongId、title、artist、level、levelSortValue、status、createdAt、updatedAt | 内部IDを主キーとし、Play.songRefIdはSong.idを参照する。gameSongIdはnull許容でnull以外を一意（将来の未承認曲用）。statusはapproved / pending / rejected / withdrawnを想定し、v1ではapprovedだけを作成する。表示文字列と難易度ソート値を分ける |
-| Player | playerId | 新規はセーブデータのUUIDv4。旧記録は新IDと区別した内部専用ID。認証情報ではない |
-| Installation | playerId、tokenHash、revokedAt、createdAt | クライアント生成tokenの個別送信認証。playerIdとtokenHashはそれぞれ一意。正規token文字列のUTF-8に対するSHA-256のみ保存し、平文・復元可能な暗号化tokenは保存しない |
-| Play | playId、songRefId、score、isFullCombo、isTaipen、receivedAt、gameVersion、hostPlayerId、playerCount、teamKey、source、legacyRecordKey、excludedAt | 新規の全受理記録と移行で選んだ最高記録を保存。playIdは一意。APIのsongId（gameSongId）は受付時にSong.idへ変換してsongRefIdに保存する。FC・モード・バージョン・hostPlayerIdは移行用にnull許容。legacyRecordKeyは移行時のみ使用しsourceとの組を一意にする。teamKeyは必須の文字列列で、参加者IDから生成して保存する（非一意） |
-| PlayParticipant | playId、playerId、nameAtPlay、colorAtPlay、position | プレイ当時の名前・色を保持。移行元にない色はnull。playId+playerIdを一意にする |
+| Player | playerId、tokenHash、revokedAt、createdAt | 新規はセーブデータのUUIDv4。旧記録は`legacy-`で始まる内部専用ID。playerId自体は認証情報ではない。tokenHashはクライアント生成tokenの個別送信認証で、null許容・null以外は一意。正規token文字列のUTF-8に対するSHA-256のみ保存し、平文・復元可能な暗号化tokenは保存しない。tokenHashがnullでないことを初回登録完了とみなす（移行用Playerは常にnull）。1プレイヤー1tokenのため別テーブルにしない |
+| Play | playId、songRefId、score、isFullCombo、isTaipen、receivedAt、gameVersion、hostPlayerId、playerCount、teamKey、excludedAt | 新規の全受理記録と移行で選んだ最高記録を保存。playIdは一意。APIのsongId（gameSongId）は受付時にSong.idへ変換してsongRefIdに保存する。FC・モード・バージョン・hostPlayerIdは移行用にnull許容。hostPlayerIdがnullの記録を移行分とみなす（APIはhostPlayerIdを必須とするため）。teamKeyは必須の文字列列で、参加者IDから生成して保存する（非一意） |
+| PlayParticipant | playId、playerId、nameAtPlay、colorAtPlay | プレイ当時の名前・色を保持。colorAtPlayは必須。playId+playerIdとplayId+colorAtPlayをそれぞれ一意にする。表示順は色のR→B→Y→Gで決め、受信順は保存しない |
 | LegacyIdentityMapping | 移行用playerId、対応する新playerId、確認状態 | 確認できた旧IDと新IDの対応だけを管理する。名前一致だけの自動紐付けはしない |
 
 ## 曲マスター
 
 - 正本はランキングDB。v1は管理者が曲登録API（[API仕様](api-contract.md#曲登録api管理者)）または登録スクリプトで登録・修正する。管理画面は後回し。
+- 曲番号順の並べ替えは`ORDER BY CAST(game_song_id AS INTEGER), game_song_id`とする（4桁以上・先頭ゼロ混在でも数値順）。この式とstatusの索引を設け、約3,000曲に増えても曲一覧の1ページ表示で全件を走査しないようにする。曲名・アーティストの部分一致検索は全件走査を許容する。
 - 公開の曲一覧・ランキング・成績受付の対象はstatus=approvedの曲だけ。v1ではgameSongIdを必ず持つapprovedの曲だけが存在する。
 - 曲情報の修正は同じ行の更新とし、内部ID・gameSongIdを変えない。修正しても既存のPlayと代表記録はそのまま残る。
 - levelSortValueはlevelからサーバー側で算出する。LyricDataCreatorと同じく、整数部×3に「+」なら+1、「-」なら-1を加える。levelがnullならlevelSortValueもnull。
@@ -43,15 +43,14 @@ receivedAtで先着を判定する。実際の達成順とは限らない。
 
 ## 保存・再送の整合性
 
-- Play.playIdにDB一意制約。PlayParticipantのplayId+playerIdとplayId+positionも一意にする。
+- Play.playIdにDB一意制約。PlayParticipantのplayId+playerIdとplayId+colorAtPlayも一意にする。
 - プレイ（teamKey・playerCountを含む）と参加者は1トランザクション。途中失敗で一部だけ保存しない。
-- teamKeyは保存する参加者ID集合、playerCountはその件数と常に一致させる。移行後のID対応修正などで参加者IDが変わる場合は、同じトランザクションで再計算する。再送比較用の元の登録値は別に維持する。
-- 同時の挿入競合はロールバック後に既存本文を比較。同一なら200、異なるなら409。
-- 比較用の元の登録値を保持する。管理者除外や曲情報の更新で再送判定が変わらないようにする。
-- 受信順と、playerIdをソートしたチーム判定用の順は分離する。
-- 新規成績は全参加者のInstallation登録完了が前提。未登録参加者を受付時に自動作成しない。旧記録の移行は専用処理とし、Installationやtokenを生成しない。
-- token失効はInstallation単位。プレイヤーID自体が認証になるわけではない。
-- Installation登録の同一ID・同一token再送は200、異なるtokenは409、失効済みの同一tokenは401。既存行を更新・再有効化しない。別IDで同じtokenの再利用も409。並行登録は一意制約とトランザクションで保護する。
+- teamKeyは保存する参加者ID集合、playerCountはその件数と常に一致させる。移行後のID対応修正などで参加者IDが変わる場合は、同じトランザクションで再計算する。
+- 同じplayIdの再送は本文を比較せず200とする。同時の挿入競合もロールバック後に既存記録のreceivedAtを返して200。比較用の元の登録値は保持しない。
+- 表示順（色順）と、playerIdをソートしたチーム判定用の順は分離する。
+- 新規成績は全参加者の初回登録完了（Player.tokenHashがnullでない）が前提。未登録参加者を受付時に自動作成しない。旧記録の移行は専用処理とし、tokenを生成しない。
+- token失効はPlayer.revokedAtで管理する。プレイヤーID自体が認証になるわけではない。
+- 初回登録の同一ID・同一token再送は200、異なるtokenは409、失効済みの同一tokenは401。既存行を更新・再有効化しない。別IDで同じtokenの再利用も409。並行登録は一意制約とトランザクションで保護する。
 - 初回登録の応答消失はクライアントで事前保存したID・tokenの再送で対応し、復旧用テーブル・暗号鍵・期限削除ジョブは設けない。詳細は[初回登録・再送仕様](auth-options.md)を参照。
 - 拒否した成績はDBに保存しない。未送信キュー・運用用短期ログは全受理プレイ履歴と区別する。
 - 初期索引候補はsongRefId+playerCount+teamKey+score（チーム別集計）、songRefId+playerCount+score（ランキング取得）、参加者playerId。playIdは一意制約で索引を持つ。具体的な集計・索引はDB選定後に確認する。
@@ -94,11 +93,11 @@ IDの衝突対策だけでは、同じセーブのコピーによる同一IDの�
 2. 曲マスターを曲一覧シートの曲番（=gameSongId）・曲名・アーティスト・難易度から一度だけ初期登録する（曲登録APIまたは同じ検証規則の移行処理）。曲別ランキング表は曲番で曲マスターに対応付ける。曲番で対応を確認できない曲は曖昧な曲名一致で自動確定せず、確認できるまでその曲の取り込みを保留する。
 3. 曲ID×人数×名前の組み合わせでまとめ、最高スコアの1件だけを選ぶ。名前の並び順は無視する。名前は完全一致で比較し、前後空白除去・大小文字変換・Unicode正規化・別名統合はしない。同じ名前が複数人いる場合も人数を保持した配列（多重集合）で比較する。比較キーはソートした名前配列のJSON表現とし、名前に区切り文字が含まれても衝突させない。
 4. 同点の候補は移行元の固定したタブ順・行番号・人数ブロック順で先の1件を選ぶ。これは移行の再現性のためであり達成順ではない。次点以下は移行しないため、後日除外しても旧シートの次点はDBから復帰できない。
-5. 完全一致の名前を基準に内部専用の移行用playerIdを割り当てる。同じ名前が同一チームに複数ある場合は出現数分の区別可能なIDを使い、参加者IDの一意性と人数を保つ。対応は移行処理用の管理データとして維持する。新規UUIDv4と区別する名前空間を使い、初回登録APIでは受け付けない。名前一致は旧記録の集約ルールであり、実在する人物の同一性を保証しない。
+5. 完全一致の名前を基準に内部専用の移行用playerIdを割り当てる。同じ名前が同一チームに複数ある場合は出現数分の区別可能なIDを使い、参加者IDの一意性と人数を保つ。対応は移行処理用の管理データとして維持する。移行用playerIdは`legacy-`で始まる形式とし、新規UUIDv4と区別する。初回登録APIでは受け付けない。Playerに種別の列は設けない。名前一致は旧記録の集約ルールであり、実在する人物の同一性を保証しない。
 6. 新しいplayerIdへは自動で紐付けず、確認できた対応だけをLegacyIdentityMappingで管理する。改名前後も推測でまとめない。未確認の旧チームと新チームは別として扱う。同一プレイ内の複数の旧IDが一つの新IDへ重なる対応は自動適用せず、参加者ID重複を解消できるまで保留する。
-7. isFullCombo・isTaipen・gameVersion・hostPlayerIdおよび確認できないcolorAtPlayはnullとする。不明をfalseや推測値に置き換えない。旧達成日時の列は追加せず、receivedAtには移行バッチの初回インポート受付時刻を設定する。
+7. isFullCombo・isTaipen・gameVersion・hostPlayerIdはnullとする。不明をfalseや推測値に置き換えない。colorAtPlayは移行元に情報がないが、表示順を保つため、シート上の参加者の並び順に1人目からR・B・Y・Gを割り当てる（実際の色ではなく仮定）。旧達成日時の列は追加せず、receivedAtには移行バッチの初回インポート受付時刻を設定する。
 8. 割り当てた参加者IDから通常と同じ規則でteamKeyとplayerCountを生成する。確認済みの新IDへ対応を修正する場合も、参加者・teamKey・playerCountを一つのトランザクションで更新する。
-9. 選択した移行元行・人数ブロックの安定した識別子をlegacyRecordKeyとして管理し、sourceとの一意制約で再取り込みの重複を防ぐ。再取り込みでplayId・receivedAt・割当済みIDを再生成しない。
+9. 移行元の行識別子は保存しない。公開前は移行分（hostPlayerIdがnullのPlayと参加者・移行用Player）をすべて削除して取り込み直せる。同点の選択規則が固定されているため、取り込み直しても同じ記録が選ばれる。公開後（新IDとの対応付け開始後）は取り込み直さない。
 10. 曲・人数別の選択後件数、最高スコア、参加者数、再取り込み時の件数不変を照合する。新規APIの全受理記録保存とは区別する。
 
 ### 実データの取り扱い

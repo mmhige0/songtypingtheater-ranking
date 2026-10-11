@@ -42,6 +42,12 @@
 
 - 構成はCloudflare無料プラン（Workers＋Hono、D1、Drizzle）。比較検討は行わない。詳細は[システム構成](architecture.md)。
 - 送信回数制限はAPI仕様の値に厳密には従わず、Workers Rate Limitingで設定できる期間・回数に合わせる。
+- 同じplayIdの成績再送は本文を比較せず一律200 already_registered（初回receivedAtを返す）。409 PLAY_ID_CONFLICTと比較用の元の登録値の保持は廃止。ゲーム側の対応変更は不要。
+- 移行元の行識別子（legacyRecordKey）とPlay.sourceは持たない。hostPlayerIdがnullの記録を移行分とみなす。公開前は移行分を全削除して取り込み直せ、公開後は取り込み直さない。
+- 移行用playerIdは`legacy-`で始まる形式。Playerに種別の列は設けない。
+- 送信tokenのハッシュ・失効はPlayerの列とし、Installationテーブルは設けない（1プレイヤー1token）。
+- 参加者の表示順は色のR→B→Y→G。同じプレイ内の色の重複は400 DUPLICATE_COLOR。受信順は保存しない。移行分はシート上の並び順にR・B・Y・Gを仮に割り当てる。
+- 曲番号順は`CAST(game_song_id AS INTEGER), game_song_id`で並べ、索引で全件走査を避ける（4桁以上の曲番に対応）。
 
 ## 設計案として反映（最終調整）
 
