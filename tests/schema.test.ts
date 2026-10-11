@@ -1,5 +1,6 @@
 import { env } from 'cloudflare:workers'
 import { beforeEach, describe, expect, it } from 'vitest'
+import { resetDb } from './helpers'
 
 // 架空データのみ使用
 const NOW = '2026-10-10T13:00:02.120Z'
@@ -50,11 +51,7 @@ const duplicateError = (target: string, kind: 'UNIQUE' | 'PRIMARYKEY') =>
 const CHECK_ERROR = /CHECK constraint failed/
 
 beforeEach(async () => {
-  await env.DB.batch(
-    ['play_participant', 'play', 'legacy_identity_mapping', 'player', 'song'].map((table) =>
-      env.DB.prepare(`DELETE FROM ${table}`),
-    ),
-  )
+  await resetDb()
   await insertSong('001')
   await insertPlayer(HOST)
   await insertPlayer(GUEST)
