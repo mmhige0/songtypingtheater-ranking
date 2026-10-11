@@ -1,7 +1,5 @@
 import { createMiddleware } from 'hono/factory'
-import { ApiError } from './http'
-
-const BEARER = /^Bearer ([\x21-\x7e]+)$/
+import { ApiError, readBearerToken } from './http'
 
 const sha256 = async (value: string) =>
   new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)))
@@ -15,8 +13,7 @@ const timingSafeEqualText = async (a: string, b: string) => {
 // 管理用キーのBearer認証。サーバー側でキーが未設定なら全リクエストを拒否する
 export const requireAdminKey = createMiddleware<{ Bindings: Env }>(async (c, next) => {
   const expected = c.env.ADMIN_API_KEY
-  // 複数のAuthorizationヘッダーは", "で連結されるため、この形式に一致しない
-  const provided = BEARER.exec(c.req.header('Authorization') ?? '')?.[1]
+  const provided = readBearerToken(c)
 
   if (!expected || !provided || !(await timingSafeEqualText(provided, expected))) {
     throw new ApiError(401, 'INVALID_TOKEN', '認証に失敗しました')
