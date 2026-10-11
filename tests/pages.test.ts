@@ -39,6 +39,27 @@ describe('song list page', () => {
     expect(text).toContain('123,456')
     expect(text).toContain('ソロの人')
     expect(text).toContain('href="/songs/001?players=1"')
+    expect(text).toContain('<h1 class="page-title">ランキング</h1>')
+  })
+
+  it('shows every member of the top team and the full combo mark', async () => {
+    await insertPlay({
+      playId: 'p1',
+      songRefId: song,
+      score: 4000,
+      participants: [
+        { id: IDS[0]!, name: 'よにんめ', color: 'G' },
+        { id: IDS[1]!, name: 'ひとりめ', color: 'R' },
+        { id: IDS[2]!, name: 'さんにんめ', color: 'Y' },
+        { id: IDS[3]!, name: 'ふたりめ', color: 'B' },
+      ],
+      isFullCombo: true,
+    })
+    const text = await html('/')
+    const cell = text.slice(text.indexOf('href="/songs/001?players=4"'))
+    expect(cell.indexOf('ひとりめ')).toBeLessThan(cell.indexOf('ふたりめ'))
+    expect(cell.indexOf('さんにんめ')).toBeLessThan(cell.indexOf('よにんめ'))
+    expect(cell.indexOf('aria-label="フルコンボ"')).toBeLessThan(cell.indexOf('</td>'))
   })
 
   it('shows a message when nothing matches', async () => {
@@ -96,8 +117,8 @@ describe('song ranking page', () => {
     expect(text).toMatch(/id="tab-2"[^>]*checked/)
     expect(text).not.toMatch(/id="tab-1"[^>]*checked/)
     expect(text.indexOf('ひとりめ')).toBeLessThan(text.indexOf('ふたりめ'))
-    expect(text).toContain('>FC<')
-    expect(text).toContain('受付 2026/10/10 22:00')
+    expect(text).toContain('aria-label="フルコンボ"')
+    expect(text).not.toContain('受付')
     expect(text).toContain('記録はまだありません')
   })
 
@@ -113,7 +134,7 @@ describe('song ranking page', () => {
     expect(text).toContain('&lt;script&gt;')
   })
 
-  it('labels legacy records instead of showing the import time as received time', async () => {
+  it('shows legacy records without the received time or a legacy label', async () => {
     await insertPlay({
       playId: 'legacy-1',
       songRefId: song,
@@ -122,7 +143,9 @@ describe('song ranking page', () => {
       isFullCombo: null,
       hostPlayerId: null,
     })
-    expect(await html('/songs/001')).toContain('移行記録')
+    const text = await html('/songs/001')
+    expect(text).toContain('旧記録')
+    expect(text).not.toContain('移行記録')
   })
 
   it('shows the top 10 per player count and links to the full ranking', async () => {
