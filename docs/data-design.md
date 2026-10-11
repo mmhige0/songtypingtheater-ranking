@@ -18,7 +18,7 @@ DB製品に依存しない概念設計。テーブル名・型は提案。物理
 - 曲番号順の並べ替えは`ORDER BY CAST(game_song_id AS INTEGER), game_song_id`とする（4桁以上・先頭ゼロ混在でも数値順）。この式とstatusの索引を設け、約3,000曲に増えても曲一覧の1ページ表示で全件を走査しないようにする。曲名・アーティストの部分一致検索は全件走査を許容する。
 - 公開の曲一覧・ランキング・成績受付の対象はstatus=approvedの曲だけ。v1ではgameSongIdを必ず持つapprovedの曲だけが存在する。
 - 曲情報の修正は同じ行の更新とし、内部ID・gameSongIdを変えない。修正しても既存のPlayと代表記録はそのまま残る。
-- levelSortValueはlevelからサーバー側で算出する。LyricDataCreatorと同じく、整数部×3に「+」なら+1、「-」なら-1を加える。levelがnullならlevelSortValueもnull。
+- levelSortValueはlevelからサーバー側で算出する。LyricDataCreatorと同じく、整数部×3に「+」なら+1、「-」なら-1を加える。levelがnull・`-`・`?`ならlevelSortValueはnull（難易度順では最後）。`-`・`?`は文字列のまま保存・表示する。
 - 将来の譜面投稿では、未承認曲（pending、gameSongIdなし）として仮登録し、承認時にgameSongIdを設定してapprovedにする。このためgameSongIdを主キーにしない。
 - 曲の削除・gameSongIdの変更・非公開化は管理機能の残課題とする。
 

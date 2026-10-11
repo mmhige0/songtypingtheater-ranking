@@ -36,11 +36,11 @@ describe('isValidGameSongId', () => {
 })
 
 describe('level', () => {
-  it.each(['1', '5+', '5-', '10', '99+'])('accepts %s', (level) => {
+  it.each(['1', '5+', '5-', '10', '99+', '-', '?'])('accepts %s', (level) => {
     expect(isValidLevel(level)).toBe(true)
   })
 
-  it.each(['0', '05', '100', ' 5', '5 ', '5++', '+5', ''])('rejects %j', (level) => {
+  it.each(['0', '05', '100', ' 5', '5 ', '5++', '+5', '', '--', '-5', '+', '？', '??', ' -'])('rejects %j', (level) => {
     expect(isValidLevel(level)).toBe(false)
   })
 
@@ -49,5 +49,7 @@ describe('level', () => {
     expect(toLevelSortValue('5+')).toBe(16)
     expect(toLevelSortValue('5-')).toBe(14)
     expect(toLevelSortValue(null)).toBeNull()
+    expect(toLevelSortValue('-')).toBeNull()
+    expect(toLevelSortValue('?')).toBeNull()
   })
 })
