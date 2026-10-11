@@ -11,6 +11,7 @@ import {
   parsePlayerCount,
   parseSearchText,
   parseSongSort,
+  parseSortDir,
 } from '../lib/view-query'
 
 const DEFAULT_LIMIT = 50
@@ -30,6 +31,7 @@ songsRoute.get('/', async (c) => {
     q: parseSearchText(c.req.query('q'), 'q'),
     level: parseLevel(c.req.query('level')),
     sort: parseSongSort(c.req.query('sort')),
+    dir: parseSortDir(c.req.query('dir')),
     limit,
     offset: (page - 1) * limit,
   })

@@ -54,8 +54,22 @@ describe('GET /api/v1/songs', () => {
     expect((await listSongs('?level=%3F')).songs.map((s) => s.gameSongId)).toEqual(['002'])
   })
 
+  it('searches song ids by partial match', async () => {
+    expect((await listSongs('?q=99')).songs.map((s) => s.gameSongId)).toEqual(['999'])
+  })
+
   it('sorts by level with unknown levels last', async () => {
     expect((await listSongs('?sort=level')).songs.map((s) => s.gameSongId)).toEqual(['999', '1000', '010', '002'])
+  })
+
+  it('sorts in descending order, keeping unknown levels last and song ids ascending within a level', async () => {
+    expect((await listSongs('?dir=desc')).songs.map((s) => s.gameSongId)).toEqual(['1000', '999', '010', '002'])
+    expect((await listSongs('?sort=level&dir=desc')).songs.map((s) => s.gameSongId)).toEqual([
+      '010',
+      '999',
+      '1000',
+      '002',
+    ])
   })
 
   it('pages through the list', async () => {
@@ -65,7 +79,7 @@ describe('GET /api/v1/songs', () => {
   })
 
   it('rejects invalid queries', async () => {
-    for (const query of ['?sort=title', '?level=abc', '?limit=0', '?page=-1', `?q=${'x'.repeat(101)}`]) {
+    for (const query of ['?sort=title', '?dir=up', '?level=abc', '?limit=0', '?page=-1', `?q=${'x'.repeat(101)}`]) {
       expect((await get(`/api/v1/songs${query}`)).status, query).toBe(400)
     }
   })

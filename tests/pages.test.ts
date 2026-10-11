@@ -44,6 +44,39 @@ describe('song list page', () => {
   it('shows a message when nothing matches', async () => {
     expect(await html('/?q=存在しない曲')).toContain('条件に一致する曲がありません')
   })
+
+  it('renders a table whose sort headers toggle the direction', async () => {
+    await insertSong('002', '架空の曲2', { level: '3', levelSortValue: 9 })
+    const text = await html('/')
+    expect(text).toContain('<table class="songs">')
+    expect(text).toContain('全2曲')
+    expect(text).not.toContain('<select')
+    expect(text).toContain('href="/?dir=desc"')
+    expect(text).toContain('href="/?sort=level"')
+    expect(text.indexOf('架空の曲名')).toBeLessThan(text.indexOf('架空の曲2'))
+
+    const desc = await html('/?dir=desc&q=架空')
+    expect(desc.indexOf('架空の曲2')).toBeLessThan(desc.indexOf('架空の曲名'))
+    expect(desc).toContain('aria-sort="descending"')
+    expect(desc).toContain(`href="/?q=${encodeURIComponent('架空')}"`)
+    expect(desc).toContain('<input type="hidden" name="dir" value="desc"/>')
+  })
+
+  it('points the infinite scroll at the next page', async () => {
+    await env.DB.batch(
+      Array.from({ length: 50 }, (_, i) =>
+        env.DB.prepare(
+          `INSERT INTO song (game_song_id, title, status, created_at, updated_at) VALUES (?, ?, 'approved', ?, ?)`,
+        ).bind(String(100 + i), `曲${i}`, at(0), at(0)),
+      ),
+    )
+    const first = await html('/?sort=level')
+    expect(first).toContain('data-next="/?sort=level&amp;page=2"')
+    expect(first).toContain('全51曲')
+    const second = await html('/?sort=level&page=2')
+    expect(second).not.toContain('data-next=')
+    expect(second).toContain('2 / 2 ページ（51件）')
+  })
 })
 
 describe('song ranking page', () => {
@@ -148,6 +181,7 @@ describe('page errors', () => {
 
   it('returns HTML for invalid queries', async () => {
     expect(await html('/?sort=title', 400)).toContain('sortはidまたはlevelにしてください')
+    expect(await html('/?dir=up', 400)).toContain('dirはascまたはdescにしてください')
   })
 })
 

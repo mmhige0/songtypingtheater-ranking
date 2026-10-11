@@ -148,33 +148,47 @@ input[type=search]:focus-visible, select:focus-visible {
 .pagination { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px; margin: 24px 0 0; }
 .back-link { display: inline-block; margin-bottom: 12px; font-size: .875rem; text-decoration: none; }
 
-/* 曲一覧（LyricDataCreatorの曲カード） */
-.song-grid { display: grid; gap: 20px; margin: 0; padding: 0; list-style: none; }
-@media (min-width: 768px) { .song-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-.song-card { display: flex; flex-direction: column; gap: 12px; min-width: 0; padding: 20px; transition: transform .2s, box-shadow .2s; }
-.song-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 10px 15px -3px rgb(0 0 0 / .1), 0 4px 6px -4px rgb(0 0 0 / .1);
+/* 曲一覧: 列幅固定の表。狭い画面は枠の中で横スクロールする */
+#sort-state { display: contents; }
+.search-field { position: relative; flex: 1 1 16em; max-width: 440px; min-width: 0; }
+.search-field input[type=search] { width: 100%; padding-right: 40px; }
+.search-field input[type=search]::-webkit-search-cancel-button { -webkit-appearance: none; display: none; }
+.search-clear {
+  position: absolute; top: 50%; right: 4px; display: flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border-radius: 999px; transform: translateY(-50%);
+  color: hsl(var(--muted-foreground)); text-decoration: none;
 }
-.song-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
-.song-no { font-size: .75rem; font-weight: 600; letter-spacing: .025em; text-transform: uppercase; color: hsl(var(--muted-foreground)); }
-.song-level { font-weight: 600; color: hsl(var(--muted-foreground)); }
+.search-clear[hidden] { display: none; }
+.search-clear:hover { background: hsl(var(--muted)); color: hsl(var(--foreground)); }
+.result-count { margin: 0 0 8px; }
+.table-wrap { overflow-x: auto; }
+table.songs { width: 100%; min-width: 800px; border-collapse: collapse; table-layout: fixed; font-size: .9375rem; }
+.songs .col-no { width: 4.5rem; } .songs .col-level { width: 4rem; } .songs .col-best { width: 7rem; }
+.songs th {
+  padding: 12px; font-size: .75rem; font-weight: 600; letter-spacing: .025em; text-align: left;
+  color: hsl(var(--muted-foreground)); white-space: nowrap;
+}
+.songs td { padding: 10px 12px; border-top: 1px solid hsl(var(--border-subtle)); vertical-align: top; }
+.songs tbody tr:hover { background: hsl(var(--primary) / .04); }
+.songs .best { text-align: right; }
+.songs .no { font-weight: 600; color: hsl(var(--muted-foreground)); white-space: nowrap; }
+.songs .level { font-weight: 600; white-space: nowrap; }
+.sort-link { display: inline-flex; align-items: center; color: inherit; text-decoration: none; }
+.sort-link:hover, th[aria-sort] .sort-link { color: hsl(var(--primary)); }
+.sort-arrow { display: inline-block; width: 1em; text-align: center; }
 .song-title {
-  display: block; overflow: hidden; font-size: 1.125rem; font-weight: 600; color: hsl(var(--foreground));
+  display: block; overflow: hidden; font-weight: 600; color: hsl(var(--foreground));
   text-decoration: none; text-overflow: ellipsis; white-space: nowrap;
 }
 .song-title:hover { color: hsl(var(--primary)); }
-.song-artist { margin-top: -8px; font-weight: 500; color: hsl(var(--secondary-foreground)); overflow-wrap: anywhere; }
-.bests {
-  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 4px 0 0; padding: 12px 0 0;
-  border-top: 1px solid hsl(var(--border-subtle));
-}
-@media (max-width: 479px) { .bests { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 12px; } }
-.best { min-width: 0; overflow-wrap: anywhere; }
-.best dt { font-size: .75rem; color: hsl(var(--muted-foreground)); }
-.best dd { margin: 0; }
+.song-artist, .best-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.song-artist { margin-top: 2px; font-size: .8125rem; color: hsl(var(--secondary-foreground)); }
 .best a { font-weight: 600; color: hsl(var(--foreground)); text-decoration: none; white-space: nowrap; }
 .best a:hover { color: hsl(var(--primary)); }
+/* JSが有効なら無限スクロール、無効なら前へ・次へのリンク */
+.load-more { display: none; }
+.js .load-more { display: block; min-height: 40px; padding: 16px 0; color: hsl(var(--muted-foreground)); font-size: .875rem; text-align: center; }
+.js .pagination-fallback { display: none; }
 
 /* 曲別ランキング: 広い画面は4人数を横に並べ、狭い画面はチップ（JSなし）で切り替える */
 .tab-input { position: absolute; opacity: 0; pointer-events: none; }
@@ -215,8 +229,9 @@ table.ranking { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .ranking .received { margin-top: 2px; font-size: .75rem; color: hsl(var(--muted-foreground)); }
 `
 
-// 保存したテーマ（light・dark）を描画前に反映する。保存がなければ端末の設定に従う
-const THEME_INIT = `try{var t=localStorage.getItem('theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}`
+// 保存したテーマ（light・dark）を描画前に反映する。保存がなければ端末の設定に従う。
+// JSの有無でCSSを切り替えるため、html要素にjsクラスを付ける
+const THEME_INIT = `document.documentElement.classList.add('js');try{var t=localStorage.getItem('theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}`
 
 // テーマ切り替えボタン。JSが無効なら表示しない
 const THEME_TOGGLE = `(function(){var b=document.getElementById('theme-toggle');if(!b)return;b.hidden=false;
