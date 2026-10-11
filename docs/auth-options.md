@@ -59,8 +59,8 @@ tokenHashは正規形式のtoken文字列のUTF-8バイト列に対するSHA-256
 
 ## 保存・同時登録・失効
 
-- Installation.playerIdとtokenHashをそれぞれ一意にする。Bearer tokenから送信元を一意に特定する。
-- 登録に伴うDB更新は一つのトランザクションで保存する。必要なPlayer行作成も同じトランザクションに含める。既存Player行だけを理由に初回Installation登録を拒否しない。
+- tokenHashはPlayerの列（null許容・null以外は一意）として保存する。Bearer tokenから送信元を一意に特定する。
+- 登録はPlayer行（playerId・tokenHash・createdAt）の挿入1文で行う。`legacy-`で始まる移行用IDはUUIDv4形式の検証で400となり登録できない。
 - 同時登録で一意制約が競合したらロールバックし、保存済みのID・ハッシュ・失効状態を再確認する。同じID・tokenなら200、異なるtokenなら409。一意制約競合を通常の500にしない。
 - 別ID・同じtokenの同時登録は一方だけ201、もう一方は409とする。
 - 再送でtokenHash・createdAt・revokedAtを変更しない。失効状態の照合を含め、登録と失効の並行処理でも再有効化しない。

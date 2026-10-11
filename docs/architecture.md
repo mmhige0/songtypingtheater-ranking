@@ -15,7 +15,8 @@ Cloudflareの無料プランで構築する。他構成との比較は行わず�
 | ORM・マイグレーション | Drizzle ORM。drizzle-kitで生成したSQLを`wrangler d1 migrations`で適用 |
 | 送信回数制限 | Workers Rate Limiting（バインディング）。使えない場合はD1の固定窓カウンター |
 | バックアップ | D1 Time Travel（7日）＋管理者の手動`wrangler d1 export` |
-| 言語・テスト | TypeScript（strict）、Vitest＋`@cloudflare/vitest-pool-workers` |
+| 言語・テスト | TypeScript（strict）、Vitest＋`@cloudflare/vitest-plugin`（旧`@cloudflare/vitest-pool-workers`） |
+| 設定・型 | `wrangler.jsonc`。Workerの型は`wrangler types`で生成（`worker-configuration.d.ts`はコミットせず、型チェック時に生成） |
 | ドメイン | 当面はworkers.devのサブドメイン |
 
 LyricDataCreator（Vercel）とは運用基盤が別になる。連携は公開の曲一覧APIの読み取りだけで、相互に依存しない。
@@ -23,7 +24,7 @@ LyricDataCreator（Vercel）とは運用基盤が別になる。連携は公開�
 ## 環境・秘密情報
 
 - 本番とローカル開発（`wrangler dev`、ローカルD1）の2環境から始める。
-- `ADMIN_API_KEY`は`wrangler secret`で設定する。`wrangler.toml`・リポジトリ・ログに含めない。
+- `ADMIN_API_KEY`は`wrangler secret`で設定する。`wrangler.jsonc`・リポジトリ・ログに含めない。ローカルでは`.dev.vars`（コミットしない）に設定する。
 - 送信元IPは`CF-Connecting-IP`だけを使う。`X-Forwarded-For`等の任意の転送ヘッダーは信頼しない。
 
 ## D1でのトランザクション方針
@@ -32,14 +33,23 @@ D1はアプリから対話的にBEGIN〜COMMITを発行できず、`batch()`に�
 
 | 処理 | 実装方針 |
 |---|---|
-| 成績登録 | 検証・曲の変換（gameSongId→Song.id）・参加者の登録確認を先に行い、Playと全PlayParticipantの挿入を1回の`batch()`で実行する。playIdの一意制約違反なら既存の記録・参加者を読み直して登録本文と比較し、同一なら200、異なるなら409 |
-| 初回登録 | Player行（未作成時）とInstallationの挿入を1回の`batch()`で実行する。一意制約違反なら保存済みのID・tokenHash・失効状態を読み直し、仕様どおり200・409・401を返す |
+| 成績登録 | 検証・曲の変換（gameSongId→Song.id）・参加者の登録確認を先に行い、Playと全PlayParticipantの挿入を1回の`batch()`で実行する。playIdの一意制約違反なら既存の記録のreceivedAtを読み直して200 already_registered（本文は比較しない） |
+| 初回登録 | tokenHash付きのPlayer行の挿入1文で実行する。一意制約違反なら保存済みのID・tokenHash・失効状態を読み直し、仕様どおり200・409・401を返す |
 | 曲登録 | `INSERT ... ON CONFLICT(gameSongId) DO UPDATE`の1文で登録・更新する。値が同じ場合は更新せず、created・updated・unchangedを判定できる形にする |
 | 移行のID対応修正 | 参加者・teamKey・playerCountの更新を1回の`batch()`で実行する |
 
 `batch()`の前に読んだ値が、実行時までに他のリクエストで変わる可能性がある処理（例: 検証後の失効）は、一意制約・条件付き更新で守れる範囲を実装時に確認する。
 
-公式ドキュメントでは`batch()`は「Batched statements are SQL transactions」とされ、文は順に実行され、途中の失敗で全体がロールバックされる。一意制約違反のエラーの判別方法（メッセージ・コード）は記載がないため、実装時にローカルD1で確認する。
+公式ドキュメントでは`batch()`は「Batched statements are SQL transactions」とされ、文は順に実行され、途中の失敗で全体がロールバックされる。ローカルD1のテストでも、`batch()`の途中の失敗で先行する挿入が取り消されることを確認した（`tests/schema.test.ts`）。
+
+重複による制約違反は、ローカルD1で次の形式のエラーメッセージになることを確認した。一意インデックス（gameSongId・tokenHash等）の違反は`SQLITE_CONSTRAINT_UNIQUE`、主キー（playId・playerId・参加者のplayId+playerId）の違反は`SQLITE_CONSTRAINT_PRIMARYKEY`になる。判別には両方を対象とし、メッセージの`<テーブル>.<列>`で対象の制約を見分ける。Drizzle経由ではエラーが包まれるため、`cause`も確認する。
+
+```text
+D1_ERROR: UNIQUE constraint failed: song.game_song_id: SQLITE_CONSTRAINT (extended: SQLITE_CONSTRAINT_UNIQUE)
+D1_ERROR: UNIQUE constraint failed: play.play_id: SQLITE_CONSTRAINT (extended: SQLITE_CONSTRAINT_PRIMARYKEY)
+```
+
+外部キー違反・CHECK制約違反もそれぞれ`FOREIGN KEY constraint failed`・`CHECK constraint failed`を含む。D1では外部キー制約が有効である。
 
 ## D1の制約への対応
 
@@ -53,7 +63,7 @@ D1はアプリから対話的にBEGIN〜COMMITを発行できず、`batch()`に�
 | 対象 | キー | 初期値 |
 |---|---|---|
 | POST /api/v1/plays | 送信元IP | 60秒20リクエスト |
-| POST /api/v1/plays | 認証済みinstallation | 60秒20リクエスト |
+| POST /api/v1/plays | 認証済みtokenのplayerId | 60秒20リクエスト |
 | POST /api/v1/installations | 送信元IP | 60秒5リクエスト |
 | PUT /api/v1/admin/songs/{gameSongId} | なし | 管理用キーで認証するため制限しない（初期登録の連続送信を妨げない） |
 | 閲覧API・画面 | 送信元IP | 送信APIと別枠。値は実測後に決める |
@@ -110,9 +120,9 @@ API仕様は重複JSONキーの検出を求める。`JSON.parse`・`c.req.json()
 | 項目 | 確認方法 |
 |---|---|
 | Workers Rate Limitingの無料プランでの利用可否 | 最初のデプロイで動作確認。使えなければD1カウンターへ切り替え |
-| 一意制約違反の判別方法 | ローカルD1・Drizzleで実際のエラーを確認 |
+| 一意制約違反の判別方法 | ローカルD1では確認済み（[D1でのトランザクション方針](#d1でのトランザクション方針)）。Drizzle経由のエラーの包まれ方はAPI実装時に確認 |
 
-## リポジトリ構成案
+## リポジトリ構成
 
 ```text
 src/
@@ -122,5 +132,17 @@ src/
 migrations/    # D1マイグレーションSQL
 scripts/       # 曲登録スクリプト（CLI）
 tests/
-wrangler.toml
+wrangler.jsonc
+drizzle.config.ts
+vitest.config.ts
 ```
+
+`routes/`・`lib/`・`scripts/`はAPI実装時に追加する。スキーマを変更したら`npm run db:generate`でマイグレーションSQLを生成する。
+
+## Cloudflare上の初期設定（管理者が実施）
+
+1. `npx wrangler login`
+2. `npx wrangler d1 create songtypingtheater-ranking`を実行し、表示された`database_id`で`wrangler.jsonc`の仮の値を置き換える。
+3. `npm run db:migrate:remote`でマイグレーションを適用する。
+4. `npx wrangler secret put ADMIN_API_KEY`で管理用キーを設定する（曲登録API実装後）。
+5. `npm run deploy`でデプロイする。

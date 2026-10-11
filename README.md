@@ -1,7 +1,7 @@
 # 協力タイピングゲーム ランキングサイト
 
 2026-10-11時点の要件・設計準備用リポジトリ。プロジェクト名: songtypingtheater-ranking。
-実装・公開はまだ行っていない。
+プロジェクトの雛形とDBスキーマを作成済み。APIの実装・公開はまだ行っていない。
 
 ## 文書
 
@@ -31,6 +31,12 @@ GitHubの作成先は `mmhige0/songtypingtheater-ranking`、公開リポジト�
 
 ```sh
 git clone https://github.com/mmhige0/songtypingtheater-ranking.git
+npm ci
+npm run db:migrate:local  # ローカルD1へマイグレーション適用
+npm run dev               # http://localhost:8787
+npm run check             # lint・型チェック・テスト
 ```
+
+Node.js 22を使用。Cloudflare上の初期設定は[システム構成](docs/architecture.md#cloudflare上の初期設定管理者が実施)を参照。
 
 秘密情報・実際のプレイヤー名や成績・移行用の対応表はGit、PR、Issue、AIの作業メモリ・作業メモやログに残さない。設計書とテストには架空データだけを使う。
