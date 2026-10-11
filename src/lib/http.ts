@@ -10,6 +10,13 @@ export type ErrorCode =
   | 'REVOKED_TOKEN'
   | 'PLAYER_ID_ALREADY_REGISTERED'
   | 'TOKEN_ALREADY_REGISTERED'
+  | 'DUPLICATE_PLAYER_ID'
+  | 'DUPLICATE_COLOR'
+  | 'HOST_ID_MISMATCH'
+  | 'UNKNOWN_SONG'
+  | 'UNKNOWN_PLAYER'
+  | 'INVALID_TAIPEN_PLAYER_COUNT'
+  | 'SCORE_OUT_OF_RANGE'
   | 'NOT_FOUND'
   | 'PAYLOAD_TOO_LARGE'
   | 'UNSUPPORTED_MEDIA_TYPE'
@@ -36,6 +43,12 @@ export const errorResponse = (c: Context, status: ContentfulStatusCode, code: Er
   )
 
 export const invalidRequest = (message: string) => new ApiError(400, 'INVALID_REQUEST', message)
+
+const BEARER = /^Bearer ([\x21-\x7e]+)$/
+
+// `Bearer <値>`の値を返す。複数のAuthorizationヘッダーは", "で連結されるため一致しない
+export const readBearerToken = (c: Context): string | undefined =>
+  BEARER.exec(c.req.header('Authorization') ?? '')?.[1]
 
 // application/jsonで、charsetを指定する場合はutf-8だけを受理する。
 // パラメーター値は引用符付き（charset="utf-8"）も有効（RFC 9110 5.6.6）
