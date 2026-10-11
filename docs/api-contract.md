@@ -182,6 +182,7 @@ Web側はエラー応答のために失敗成績をDBへ登録しない。運用
 ## 送信制限の初期案
 
 実測後に調整可能なサーバー設定とし、拒否時は429とRetry-Afterを返す。
+以下は目安であり厳密には従わない。実際の期間・回数はCloudflareの機能に合わせる（[システム構成](architecture.md#送信回数制限)）。
 
 - /playsは送信元IP単位で10分100リクエスト、上限16 KiB。成功・再送・拒否を含むリクエスト数で制限する。
 - 認証済みinstallation単位でも10分100リクエスト。自己申告のplayerIdだけで制限しない。
@@ -275,7 +276,7 @@ levelSortValueはサーバーがlevelから算出し、本文では受け取ら�
 - gameSongIdの一意制約で同時登録の競合を検出し、500ではなく既存行に対する更新・unchangedとして処理する。
 - 削除・gameSongId変更・非公開化のAPIはv1に設けない。
 - エラーはINVALID_REQUEST（400）、INVALID_TOKEN（401）、PAYLOAD_TOO_LARGE（413）、UNSUPPORTED_MEDIA_TYPE（415）、RATE_LIMITED（429）、SERVER_ERROR（5xx）。応答形式は成績登録と同じ。
-- 送信制限は成績登録・閲覧と別枠とし、初期登録の連続送信を妨げない値にする。
+- 送信制限は成績登録・閲覧と別枠とし、初期登録の連続送信を妨げないようにする（v1は管理用キー認証のため制限しない）。
 
 ## 閲覧API候補
 
