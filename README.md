@@ -18,7 +18,7 @@
 文書中の「確定」は会話で合意された内容。「提案」は実装候補であり、ゲーム開発者との合意を意味しない。
 
 1. 採用済みAPI差分をゲーム側実装へ共有する。
-2. 曲マスターはランキングDBを正本とし、v1は管理者が認証付きの曲登録APIで登録する方針で確定。旧シートの曲番はゲーム曲IDと同じで、移行時に曲マスターを初期登録する。残りは曲別ランキング表と曲番の対応確認。
+2. 曲マスターはランキングDBを正本とし、v1は管理者（運営者とゲーム開発者）が管理用キーで認証する曲登録APIで登録する方針で確定。旧シートの曲番はゲーム曲IDと同じで、移行時に曲マスターを初期登録する。残りは曲別ランキング表と曲番の対応確認。
 3. Cloudflare無料枠の公式ドキュメント確認は完了（2026-10-11）。セーブ消失時の扱い・管理運用などの残課題を決める。
 4. 曲登録、初回登録、記録受付は実装済み。次にランキング閲覧、移行の順に実装する。
 
@@ -42,14 +42,42 @@ Node.js 22を使用。Cloudflare上の初期設定は[システム構成](docs/a
 
 ## 曲の登録
 
-曲マスターは登録スクリプトで曲登録APIへ送る。CSVは1行目を`gameSongId,title,artist,level`とし、artist・levelは空欄ならnullとして登録する。
+曲の登録・修正は管理者（運営者とゲーム開発者）が管理用キーを使って行う。新曲はゲームに公開する前に登録する（未登録の曲番の成績は`422 UNKNOWN_SONG`で失われる）。管理用キーは公開の場所に書かない。
+
+### 登録スクリプト（CSVでまとめて登録）
+
+CSVは1行目を`gameSongId,title,artist,level`とし、artist・levelは空欄ならnullとして登録する。levelは`5`・`5+`・`5-`の形式、または`-`（未定）・`?`（不明）。CSVは`imports/`（Git管理外）に置く。
 
 ```sh
-ADMIN_API_KEY=<管理用キー> npm run register-songs -- --base-url https://<Workerのドメイン> imports/songs.csv
+ADMIN_API_KEY=<管理用キー> npx tsx scripts/register-songs.ts --base-url https://<Workerのドメイン> imports/songs.csv
 ```
 
 - 1行ずつ`PUT /api/v1/admin/songs/{gameSongId}`を送り、created・updated・unchanged・エラーを表示する。エラーが1件でもあれば終了コード1。
 - 同じCSVを再実行しても結果は変わらない（変更のない曲はunchanged）。
-- HTTPSのURLだけを受け付ける（HTTPはlocalhostのみ）。CSVは`imports/`（Git管理外）に置く。
+- HTTPSのURLだけを受け付ける（HTTPはlocalhostのみ）。
+
+### 1曲だけ登録・修正する
+
+```sh
+curl -X PUT "https://<Workerのドメイン>/api/v1/admin/songs/<曲番>" \
+  -H "Authorization: Bearer <管理用キー>" \
+  -H "Content-Type: application/json" \
+  -d '{"title":"曲名","artist":"アーティスト名","level":"5+"}'
+```
+
+- 本文は`title`・`artist`・`level`の3項目すべて必須（artist・levelはnull可）。新規は201 created、変更ありは200 updated、変更なしは200 unchanged。
+- 同じ曲番で送ると曲情報を上書きする。曲番は変更できない。詳細は[API仕様](docs/api-contract.md#曲登録api管理者)。
+
+## 公開前のテストデータ削除
+
+結合テストは本番環境で行う。ゲーム公開前に、テストで登録されたプレイヤー・成績を削除する。曲（song）は残す。
+
+```sh
+npx wrangler d1 execute DB --remote --command "DELETE FROM play_participant; DELETE FROM play; DELETE FROM legacy_identity_mapping; DELETE FROM player;"
+npx wrangler d1 execute DB --remote --command "SELECT (SELECT COUNT(*) FROM song) AS songs, (SELECT COUNT(*) FROM player) AS players, (SELECT COUNT(*) FROM play) AS plays"
+```
+
+- 外部キーのため、この順序で削除する。誤って削除した場合はD1 Time Travelで7日以内に戻せる。
+- 旧記録の移行より**前**に行う。移行後に実行すると移行した記録も消える（順序: テストデータ削除 → 旧記録の移行 → ゲーム公開）。
 
 秘密情報・実際のプレイヤー名や成績・移行用の対応表はGit、PR、Issue、AIの作業メモリ・作業メモやログに残さない。設計書とテストには架空データだけを使う。
