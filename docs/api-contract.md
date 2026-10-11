@@ -12,9 +12,9 @@ Unity/C#のホストからHTTPSでUTF-8 JSONを受信する。提示されたゲ
 - TAIPEN OFFは1〜4人、TAIPEN ONは4人のみ登録可能。
 - 対戦・Debug・ゲームオーバー・キャンセル・途中離脱時の送信抑止と、Master Client交代・開始時参加者スナップショットの管理はゲーム側の責務。Web側にPhoton固有の判定・ホスト交代処理を追加しない。
 - Web側は受信したhostPlayerIdがplayersにちょうど1件存在することを検証するが、実際のMaster Clientだったことは証明できない。
-- キー入力、採点、音楽同期、譜面・ハッシュ、曲配信、譜面投稿、Discord連携はv1対象外。本格的なスコア改ざん対策は後回し。
+- キー入力、採点、音楽同期、譜面・ハッシュ、曲配信、譜面投稿、Discord連携はv1対象外（譜面投稿の将来構想は[要件定義](requirements.md#将来構想v1対象外)）。本格的なスコア改ざん対策は後回し。
 
-新曲は曲マスターへの登録完了後にゲームへ公開する。未登録曲を保留する運用は設けない。
+新曲は管理者が[曲登録API](#曲登録api管理者)で曲マスターへ登録してからゲームへ公開する（運用ルール）。登録前の曲への成績は422 UNKNOWN_SONGで再送されず失われる。v1では未承認曲を保留する仕組みは設けない。
 成績送信はホストを含む全参加者の初回登録完了を条件とする。各端末は201または同一登録の200で完了を確認し、ゲーム側で全員の完了を確認してから送信する。登録待ちの間に送信本文のplayerIdを差し替えない。
 
 ## エンドポイント・認証
@@ -23,6 +23,7 @@ Unity/C#のホストからHTTPSでUTF-8 JSONを受信する。提示されたゲ
 |---|---|---|
 | POST | /api/v1/plays | 成績登録 |
 | POST | /api/v1/installations | クライアント生成の送信トークン登録。合意済み |
+| PUT | /api/v1/admin/songs/{gameSongId} | 管理者による曲マスター登録・修正。管理用キーで認証 |
 
 ### 採用: 個別installationToken
 
@@ -92,7 +93,7 @@ installationTokenは有効期限なし・個別失効可能とする既存の初
 | フィールド | 型・検証 |
 |---|---|
 | playId | UUIDv4。再送でも同じID |
-| songId | 数字3〜8桁の文字列。000不可。新規は曲マスター登録済みのみ |
+| songId | 数字3〜8桁の文字列。000不可。曲マスターのgameSongIdを指し、受付時に曲マスターの内部IDへ変換して保存する。新規はstatus=approvedの登録済み曲のみ |
 | score | 整数、0〜2,147,483,647。小数不可 |
 | isFullCombo | boolean。このプレイの達成判定 |
 | hostPlayerId | UUIDv4。playersにちょうど1回存在 |
@@ -111,8 +112,8 @@ teamKeyはWeb側で正規化した参加者IDから生成し、Playの列に保�
 
 1. 本文サイズ、認証、JSON、型・構造・各値の形式を確認する。
 2. 重複参加者とhostPlayerIdの所属を確認する。tokenの所有IDとの一致も確認。
-3. playIdの既存記録があれば正規化後の登録本文を比較する。同一内容は200、異なる内容は409。別ホストからの一致を装った送信もhostPlayerIdの比較で一致しない。
-4. 新規のみ曲マスター登録・全参加者のInstallation登録済み状態・TAIPEN人数・得点範囲を検証。Player行だけでは登録完了とみなさない。未登録参加者は422 UNKNOWN_PLAYERで拒否し、受付時にPlayerやInstallationを自動作成しない。ホストのtoken失効は認証で拒否する。同席者のtokenを受信・認証することは求めず、ここでは登録の存在を検証する。
+3. playIdの既存記録があれば正規化後の登録本文を比較する。同一内容は200、異なる内容は409。songIdは既存記録の曲のgameSongIdと文字列で比較し、未登録のsongIdは一致しない（409）。別ホストからの一致を装った送信もhostPlayerIdの比較で一致しない。
+4. 新規のみ曲マスター登録（status=approved）・全参加者のInstallation登録済み状態・TAIPEN人数・得点範囲を検証。Player行だけでは登録完了とみなさない。未登録参加者は422 UNKNOWN_PLAYERで拒否し、受付時にPlayerやInstallationを自動作成しない。ホストのtoken失効は認証で拒否する。同席者のtokenを受信・認証することは求めず、ここでは登録の存在を検証する。
 5. teamKeyとplayerCountを生成し、プレイと全参加者を同じトランザクションで保存して201を返す。
 
 DBのPlay.playIdに一意制約を設定する。存在確認後に同時保存が競合した場合、失敗したトランザクションをロールバックし、保存済みの記録を再取得して比較する。同一なら200、異なるなら409とする。一意制約の競合を通常の500として返さない。
@@ -216,9 +217,69 @@ Web側はエラー応答のために失敗成績をDBへ登録しない。運用
 13. 代表記録と別の記録だけにある名前で検索しても、次点の記録を代わりに表示しない。
 14. キューは100件を超えたら古いものから破棄し、初回保存から7日で期限切れにする。再起動・再試行で期限を延ばさない。
 
+## 曲登録API（管理者）
+
+v1の曲マスター登録手段。管理画面は後回しとし、管理者は登録スクリプト（CLI）からこのAPIを呼ぶ。移行時の曲マスター初期登録（約500曲）も同じ検証規則で行う。
+
+### 認証
+
+- `Authorization: Bearer <adminApiKey>`。adminApiKeyは32バイト以上の乱数をサーバーの環境変数に保持する。
+- 定数時間で比較する。installationTokenとは別の資格情報で、installationTokenでは管理APIを利用できない。
+- 管理用キー・認証ヘッダーをログ・エラー応答へ出さない。キーが漏洩したら環境変数を差し替えて無効化する。
+- キー未設定・不一致・ヘッダー不正は401 INVALID_TOKEN。サーバー側でキーが未設定なら全リクエストを拒否する。
+
+### 本文
+
+```json
+{
+  "title": "架空の曲名",
+  "artist": "架空のアーティスト",
+  "level": "5+"
+}
+```
+
+共通規則（HTTPS、UTF-8 JSON、16 KiB、不明フィールド・重複キー・型不正は400）に従う。
+
+| 項目 | 型・検証 |
+|---|---|
+| パスのgameSongId | 成績登録のsongIdと同じ形式（数字3〜8桁、000不可、先頭ゼロ保持） |
+| title | 必須。1〜200 Unicode scalar values。制御文字・改行・不正なサロゲートを拒否 |
+| artist | 必須キー。文字列（1〜200、titleと同じ文字検証）またはnull |
+| level | 必須キー。`^[1-9][0-9]?[+-]?$`の文字列またはnull。前後空白は受理しない |
+
+levelSortValueはサーバーがlevelから算出し、本文では受け取らない（[データ設計](data-design.md#曲マスター)）。YouTube URL・譜面・歌詞は受け取らない。
+
+### 動作・応答
+
+全項目を指定する置き換え型の登録で、同じ本文の再送は結果を変えない。
+
+| 条件 | HTTP | status |
+|---|---|---|
+| gameSongIdが未登録 | 201 | created（status=approvedで作成） |
+| 登録済みで内容が異なる | 200 | updated（title・artist・level・levelSortValueを更新） |
+| 登録済みで内容が同じ | 200 | unchanged |
+
+```json
+{
+  "status": "created",
+  "song": {
+    "gameSongId": "001",
+    "title": "架空の曲名",
+    "artist": "架空のアーティスト",
+    "level": "5+"
+  }
+}
+```
+
+- 更新で内部ID・gameSongId・status・既存の記録を変更しない。曲情報を修正しても同じランキングに記録が残る。
+- gameSongIdの一意制約で同時登録の競合を検出し、500ではなく既存行に対する更新・unchangedとして処理する。
+- 削除・gameSongId変更・非公開化のAPIはv1に設けない。
+- エラーはINVALID_REQUEST（400）、INVALID_TOKEN（401）、PAYLOAD_TOO_LARGE（413）、UNSUPPORTED_MEDIA_TYPE（415）、RATE_LIMITED（429）、SERVER_ERROR（5xx）。応答形式は成績登録と同じ。
+- 送信制限は成績登録・閲覧と別枠とし、初期登録の連続送信を妨げない値にする。
+
 ## 閲覧API候補
 
-- GET /api/v1/songs: 曲名・アーティスト・難易度検索、ページ分割。
-- GET /api/v1/songs/{songId}/rankings: 人数・FC・プレイヤー検索、ページ分割。
+- GET /api/v1/songs: 曲名・アーティスト・難易度検索、ページ分割。status=approvedの曲だけを返す。LyricDataCreatorはこのAPIで曲情報を取得し、gameSongIdで突き合わせる。
+- GET /api/v1/songs/{songId}/rankings: `{songId}`はgameSongId（成績登録のsongIdと同じ形式）。人数・FC・プレイヤー検索、ページ分割。
 
 ページング・検索中の順位表示・履歴公開の詳細は画面設計と合わせて決める。サンプルのID・得点・時刻は架空の値。

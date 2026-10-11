@@ -6,12 +6,21 @@ DB製品に依存しない概念設計。テーブル名・型は提案。新規
 
 | エンティティ | 主な情報 | 制約・意味 |
 |---|---|---|
-| Song | gameSongId、title、artist、level、levelSortValue、lyricDataCreatorId（任意） | ゲーム曲IDを一意にする。表示文字列と難易度ソート値を分ける |
+| Song | id、gameSongId、title、artist、level、levelSortValue、status、createdAt、updatedAt | 内部IDを主キーとし、Play.songRefIdはSong.idを参照する。gameSongIdはnull許容でnull以外を一意（将来の未承認曲用）。statusはapproved / pending / rejected / withdrawnを想定し、v1ではapprovedだけを作成する。表示文字列と難易度ソート値を分ける |
 | Player | playerId | 新規はセーブデータのUUIDv4。旧記録は新IDと区別した内部専用ID。認証情報ではない |
 | Installation | playerId、tokenHash、revokedAt、createdAt | クライアント生成tokenの個別送信認証。playerIdとtokenHashはそれぞれ一意。正規token文字列のUTF-8に対するSHA-256のみ保存し、平文・復元可能な暗号化tokenは保存しない |
-| Play | playId、songId、score、isFullCombo、isTaipen、receivedAt、gameVersion、hostPlayerId、playerCount、teamKey、source、legacyRecordKey、excludedAt | 新規の全受理記録と移行で選んだ最高記録を保存。playIdは一意。FC・モード・バージョン・hostPlayerIdは移行用にnull許容。legacyRecordKeyは移行時のみ使用しsourceとの組を一意にする。teamKeyは必須の文字列列で、参加者IDから生成して保存する（非一意） |
+| Play | playId、songRefId、score、isFullCombo、isTaipen、receivedAt、gameVersion、hostPlayerId、playerCount、teamKey、source、legacyRecordKey、excludedAt | 新規の全受理記録と移行で選んだ最高記録を保存。playIdは一意。APIのsongId（gameSongId）は受付時にSong.idへ変換してsongRefIdに保存する。FC・モード・バージョン・hostPlayerIdは移行用にnull許容。legacyRecordKeyは移行時のみ使用しsourceとの組を一意にする。teamKeyは必須の文字列列で、参加者IDから生成して保存する（非一意） |
 | PlayParticipant | playId、playerId、nameAtPlay、colorAtPlay、position | プレイ当時の名前・色を保持。移行元にない色はnull。playId+playerIdを一意にする |
 | LegacyIdentityMapping | 移行用playerId、対応する新playerId、確認状態 | 確認できた旧IDと新IDの対応だけを管理する。名前一致だけの自動紐付けはしない |
+
+## 曲マスター
+
+- 正本はランキングDB。v1は管理者が曲登録API（[API仕様](api-contract.md#曲登録api管理者)）または登録スクリプトで登録・修正する。管理画面は後回し。
+- 公開の曲一覧・ランキング・成績受付の対象はstatus=approvedの曲だけ。v1ではgameSongIdを必ず持つapprovedの曲だけが存在する。
+- 曲情報の修正は同じ行の更新とし、内部ID・gameSongIdを変えない。修正しても既存のPlayと代表記録はそのまま残る。
+- levelSortValueはlevelからサーバー側で算出する。LyricDataCreatorと同じく、整数部×3に「+」なら+1、「-」なら-1を加える。levelがnullならlevelSortValueもnull。
+- 将来の譜面投稿では、未承認曲（pending、gameSongIdなし）として仮登録し、承認時にgameSongIdを設定してapprovedにする。このためgameSongIdを主キーにしない。
+- 曲の削除・gameSongIdの変更・非公開化は管理機能の残課題とする。
 
 ## 組み合わせと代表記録
 
@@ -19,7 +28,7 @@ DB製品に依存しない概念設計。テーブル名・型は提案。新規
 参加者IDは保存するplayerIdと同じ正規化を適用（UUIDは小文字化）し、重複がないことを検証してから文字列の辞書順にソートする。
 ソートしたID配列を空白なしのJSON配列文字列にシリアライズしたものをteamKeyとする。単純な区切り文字結合やハッシュ化は行わない。
 同じ参加者なら順序・名前・色・ホストの違いによらず同じキーになる。曲・人数・スコア・FC・TAIPEN・バージョンはキーに含めない。
-同じチームの複数プレイを保存するため、teamKeyおよびsongId+playerCount+teamKeyには一意制約を付けない。
+同じチームの複数プレイを保存するため、teamKeyおよびsongRefId+playerCount+teamKeyには一意制約を付けない。
 
 曲ID・人数・teamKeyでまとめ、score降順、フル達成優先、receivedAt昇順、playId辞書順で代表を選ぶ。
 FCのtrueを優先し、移行分のfalseとnullは同じ優先度にする案。nullをfalseに書き換えない。
@@ -45,7 +54,7 @@ receivedAtで先着を判定する。実際の達成順とは限らない。
 - Installation登録の同一ID・同一token再送は200、異なるtokenは409、失効済みの同一tokenは401。既存行を更新・再有効化しない。別IDで同じtokenの再利用も409。並行登録は一意制約とトランザクションで保護する。
 - 初回登録の応答消失はクライアントで事前保存したID・tokenの再送で対応し、復旧用テーブル・暗号鍵・期限削除ジョブは設けない。詳細は[初回登録・再送仕様](auth-options.md)を参照。
 - 拒否した成績はDBに保存しない。未送信キュー・運用用短期ログは全受理プレイ履歴と区別する。
-- 初期索引候補はsongId+playerCount+teamKey+score（チーム別集計）、songId+playerCount+score（ランキング取得）、参加者playerId。playIdは一意制約で索引を持つ。具体的な集計・索引はDB選定後に確認する。
+- 初期索引候補はsongRefId+playerCount+teamKey+score（チーム別集計）、songRefId+playerCount+score（ランキング取得）、参加者playerId。playIdは一意制約で索引を持つ。具体的な集計・索引はDB選定後に確認する。
 
 ## 名前・IDの注意
 
@@ -63,17 +72,26 @@ IDの衝突対策だけでは、同じセーブのコピーによる同一IDの�
 - [levels.ts](https://github.com/mmhige0/LyricDataCreator/blob/8dd9b708760b7c09aeacdb2199bb24ac6f10369d/lib/levels.ts): levelValueは整数難易度×3に、+なら1、-なら-1を加える方式。
 - [import-songs/route.ts](https://github.com/mmhige0/LyricDataCreator/blob/8dd9b708760b7c09aeacdb2199bb24ac6f10369d/app/api/import-songs/route.ts): titleで既存曲を探し、全削除・採番リセットのオプションがある。
 
-既存内部IDをゲーム共通の不変IDとみなさない。ゲーム曲IDと明示的に対応付ける。
-曲名での自動一致を恒久的な紐付けに使わない。連携先の再採番があるなら固定外部ID導入か運用変更が必要。
+- [importSongs.gs](https://github.com/mmhige0/LyricDataCreator/blob/8dd9b708760b7c09aeacdb2199bb24ac6f10369d/scripts/gas/importSongs.gs): 曲一覧シートの「曲番」列はTXTファイル名の特定だけに使われ、DBには保存されない。
+
+既存内部IDをゲーム共通の不変IDとみなさない（曲名一致での更新・採番リセットがあるため）。Songに連携先IDの列は持たない。
+曲名での自動一致を恒久的な紐付けに使わない。
 歌詞・タイムスタンプ・動画はランキングの必須データではない。
-曲マスターの更新元、同期方向、ゲーム収録済み曲の識別は未確定。ランキングDBの独立運用＋必要なメタ情報の同期を提案する。
+
+### 連携方針（確定）
+
+- 曲一覧シートの「曲番」はゲーム曲ID（gameSongId）と同じ。
+- 曲一覧シートはランキング移行完了後に廃止する。曲番・曲名・アーティスト・難易度の正本はランキングDBとする。
+- 同期方向はランキング→LyricDataCreatorの一方向。LyricDataCreatorは公開の曲一覧API（GET /api/v1/songs）から曲情報を取得し、gameSongIdで突き合わせる。逆方向の同期は行わない。
+- 譜面TXT・YouTube URLはLyricDataCreatorだけが保持し、ランキングDBには保存しない。譜面だけの修正ではランキング側の更新は不要。
+- シート廃止に伴うLyricDataCreator側の曲取り込み（現在はシート＋Drive）の再設計は、LyricDataCreatorリポジトリの課題とする。
 
 ## 移行（確定）
 
 移行元は現在のスプレッドシートのみ。他の送信元データ・ログは残っていない。曲別ランキング表を移行対象にし、集計・一覧表を重複して取り込まない。実データの再取得・保存は設計変更には不要。
 
 1. 各曲の1〜4人の横並びブロックを、曲・人数・スコア・参加者名を持つ成績へ展開する。
-2. 曲をゲーム曲IDに明示的に対応付ける。曖昧な曲名一致は自動確定せず、対応が確認できるまでその曲の取り込みを保留する。
+2. 曲マスターを曲一覧シートの曲番（=gameSongId）・曲名・アーティスト・難易度から一度だけ初期登録する（曲登録APIまたは同じ検証規則の移行処理）。曲別ランキング表は曲番で曲マスターに対応付ける。曲番で対応を確認できない曲は曖昧な曲名一致で自動確定せず、確認できるまでその曲の取り込みを保留する。
 3. 曲ID×人数×名前の組み合わせでまとめ、最高スコアの1件だけを選ぶ。名前の並び順は無視する。名前は完全一致で比較し、前後空白除去・大小文字変換・Unicode正規化・別名統合はしない。同じ名前が複数人いる場合も人数を保持した配列（多重集合）で比較する。比較キーはソートした名前配列のJSON表現とし、名前に区切り文字が含まれても衝突させない。
 4. 同点の候補は移行元の固定したタブ順・行番号・人数ブロック順で先の1件を選ぶ。これは移行の再現性のためであり達成順ではない。次点以下は移行しないため、後日除外しても旧シートの次点はDBから復帰できない。
 5. 完全一致の名前を基準に内部専用の移行用playerIdを割り当てる。同じ名前が同一チームに複数ある場合は出現数分の区別可能なIDを使い、参加者IDの一意性と人数を保つ。対応は移行処理用の管理データとして維持する。新規UUIDv4と区別する名前空間を使い、初回登録APIでは受け付けない。名前一致は旧記録の集約ルールであり、実在する人物の同一性を保証しない。
