@@ -181,20 +181,88 @@ const sqlString = (value: string) =>
 const chunk = <T>(items: readonly T[], size: number) =>
   Array.from({ length: Math.ceil(items.length / size) }, (_, i) => items.slice(i * size, (i + 1) * size))
 
-// 移行用SQL（1行1文）。先に移行分を全削除するため、公開前なら何度でも取り込み直せる（手順9）。
-// 新IDとの対応（legacy_identity_mapping）がある場合は外部キー違反で移行用Playerの削除が失敗し、取り込み直しが止まる
-export const buildSql = (plays: readonly LegacyPlay[], playerIds: readonly string[], receivedAt: string) => {
-  const lines = [
-    'DELETE FROM play_participant WHERE play_id IN (SELECT play_id FROM play WHERE host_player_id IS NULL);',
-    'DELETE FROM play WHERE host_player_id IS NULL;',
-    "DELETE FROM player WHERE player_id LIKE 'legacy-%';",
-  ]
-  const at = sqlString(receivedAt)
+// D1の1日の書き込み行数の上限（10万行、UTC 0時リセット）に収まるよう、移行用SQLを日ごとに適用するファイルに分ける。
+// 書き込み行数は索引の更新も数えるため、1行あたりの書き込み行数は本番のD1 insightsでの実測値（表＋索引の数）
+const WRITES_PER_PLAYER = 3
+const WRITES_PER_PLAY = 4
+const WRITES_PER_PARTICIPANT = 4
+// 1ファイルの書き込み見込みの上限。通常の利用分（1日数百〜千行）の余裕を残す
+export const MAX_WRITES_PER_PART = 80_000
 
-  for (const ids of chunk(playerIds, ROWS_PER_INSERT)) {
-    const values = ids.map((id) => `(${sqlString(id)}, NULL, NULL, ${at})`)
-    lines.push(`INSERT INTO player (player_id, token_hash, revoked_at, created_at) VALUES ${values.join(', ')};`)
+export type SqlPart = { sql: string; plays: number; participants: number; players: number; estimatedWrites: number }
+
+const playWrites = (play: LegacyPlay) => WRITES_PER_PLAY + WRITES_PER_PARTICIPANT * play.participants.length
+
+// 書き込み見込みがほぼ均等になるよう、成績を参加者ごと（記録順のまま）ファイルに振り分ける
+const splitPlays = (plays: readonly LegacyPlay[], playerWrites: number, maxWrites: number) => {
+  const total = playerWrites + plays.reduce((n, p) => n + playWrites(p), 0)
+  for (let parts = Math.max(1, Math.ceil(total / maxWrites)); ; parts++) {
+    const target = total / parts
+    const groups: LegacyPlay[][] = [[]]
+    let writes = playerWrites
+    for (const play of plays) {
+      if (groups.length < parts && groups.at(-1)!.length > 0 && writes + playWrites(play) > target) {
+        groups.push([])
+        writes = 0
+      }
+      groups.at(-1)!.push(play)
+      writes += playWrites(play)
+    }
+    const fits = groups.every(
+      (group, i) => (i === 0 ? playerWrites : 0) + group.reduce((n, p) => n + playWrites(p), 0) <= maxWrites,
+    )
+    // 1件で上限を超える成績はないため、ファイルを増やせば必ず収まる
+    if (fits || parts >= plays.length) return groups
   }
+}
+
+// 移行用SQL（1行1文）を適用順のファイルに分けて返す。1つ目は先に移行分を全削除するため、公開前なら1つ目から
+// 何度でも取り込み直せる（手順9）。2つ目以降は自分の成績だけを削除してから入れるため、失敗したファイルだけを流し直せる。
+// 新IDとの対応（legacy_identity_mapping）がある場合は外部キー違反で移行用Playerの削除が失敗し、取り込み直しが止まる
+export const buildSqlParts = (
+  plays: readonly LegacyPlay[],
+  playerIds: readonly string[],
+  receivedAt: string,
+  maxWrites = MAX_WRITES_PER_PART,
+): SqlPart[] => {
+  const at = sqlString(receivedAt)
+  const playerWrites = WRITES_PER_PLAYER * playerIds.length
+  return splitPlays(plays, playerWrites, maxWrites).map((group, i) => {
+    const lines: string[] = []
+    if (i === 0) {
+      lines.push(
+        'DELETE FROM play_participant WHERE play_id IN (SELECT play_id FROM play WHERE host_player_id IS NULL);',
+        'DELETE FROM play WHERE host_player_id IS NULL;',
+        "DELETE FROM player WHERE player_id LIKE 'legacy-%';",
+      )
+      for (const ids of chunk(playerIds, ROWS_PER_INSERT)) {
+        const values = ids.map((id) => `(${sqlString(id)}, NULL, NULL, ${at})`)
+        lines.push(`INSERT INTO player (player_id, token_hash, revoked_at, created_at) VALUES ${values.join(', ')};`)
+      }
+    } else {
+      for (const ids of chunk(group, ROWS_PER_INSERT)) {
+        const list = ids.map((p) => sqlString(p.playId)).join(', ')
+        lines.push(
+          `DELETE FROM play_participant WHERE play_id IN (${list});`,
+          `DELETE FROM play WHERE host_player_id IS NULL AND play_id IN (${list});`,
+        )
+      }
+    }
+    lines.push(...insertPlays(group, at))
+    const participants = group.reduce((n, p) => n + p.participants.length, 0)
+    const players = i === 0 ? playerIds.length : 0
+    return {
+      sql: `${lines.join('\n')}\n`,
+      plays: group.length,
+      participants,
+      players,
+      estimatedWrites: WRITES_PER_PLAYER * players + group.reduce((n, p) => n + playWrites(p), 0),
+    }
+  })
+}
+
+const insertPlays = (plays: readonly LegacyPlay[], at: string) => {
+  const lines: string[] = []
   // 曲の内部IDは取り込み先のDBで曲番から引く。未登録の曲ならNOT NULL制約違反で失敗する
   for (const group of chunk(plays, ROWS_PER_INSERT)) {
     const values = group.map((p) => {
@@ -216,7 +284,7 @@ export const buildSql = (plays: readonly LegacyPlay[], playerIds: readonly strin
       `INSERT INTO play_participant (play_id, player_id, name_at_play, color_at_play) VALUES ${values.join(', ')};`,
     )
   }
-  return `${lines.join('\n')}\n`
+  return lines
 }
 
 // 照合用の集計（手順10）。名前は含めない

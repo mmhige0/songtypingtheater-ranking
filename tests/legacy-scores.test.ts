@@ -2,7 +2,7 @@ import { env } from 'cloudflare:workers'
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
   assignLegacyPlayers,
-  buildSql,
+  buildSqlParts,
   parseWorkbook,
   selectBestRecords,
   summarize,
@@ -194,7 +194,7 @@ describe('assignLegacyPlayers', () => {
   })
 })
 
-describe('buildSql', () => {
+describe('buildSqlParts', () => {
   const RECEIVED_AT = '2026-10-11T00:00:00.000Z'
 
   const apply = (sql: string) =>
@@ -205,10 +205,16 @@ describe('buildSql', () => {
         .map((line) => env.DB.prepare(line)),
     )
 
-  const migrate = (records: LegacyRecord[]) => {
+  const migrate = async (records: LegacyRecord[]) => {
     const { plays, playerIds } = assignLegacyPlayers(selectBestRecords(records), sequentialIds())
-    return apply(buildSql(plays, playerIds, RECEIVED_AT))
+    for (const part of buildSqlParts(plays, playerIds, RECEIVED_AT)) await apply(part.sql)
   }
+
+  const countRows = () =>
+    env.DB.prepare(
+      `SELECT (SELECT COUNT(*) FROM play) AS plays, (SELECT COUNT(*) FROM play_participant) AS participants,
+         (SELECT COUNT(*) FROM player) AS players`,
+    ).first()
 
   beforeEach(async () => {
     await resetDb()
@@ -272,11 +278,7 @@ describe('buildSql', () => {
     await migrate(records)
     await migrate(records)
 
-    const counts = await env.DB.prepare(
-      `SELECT (SELECT COUNT(*) FROM play) AS plays, (SELECT COUNT(*) FROM play_participant) AS participants,
-         (SELECT COUNT(*) FROM player) AS players`,
-    ).first()
-    expect(counts).toEqual({ plays: 3, participants: 3, players: 3 })
+    expect(await countRows()).toEqual({ plays: 3, participants: 3, players: 3 })
   })
 
   it('refuses to re-import once a legacy id is mapped to a new id', async () => {
@@ -296,10 +298,67 @@ describe('buildSql', () => {
   it('splits inserts into statements of at most 100 rows', () => {
     const records = Array.from({ length: 250 }, (_, i) => record('001', 1, i, [`架空${i}`]))
     const { plays, playerIds } = assignLegacyPlayers(records, sequentialIds())
-    const lines = buildSql(plays, playerIds, RECEIVED_AT).trim().split('\n')
+    const parts = buildSqlParts(plays, playerIds, RECEIVED_AT)
+    expect(parts).toHaveLength(1)
+    const lines = parts[0]!.sql.trim().split('\n')
     expect(lines.filter((l) => l.startsWith('INSERT INTO player '))).toHaveLength(3)
     expect(lines.filter((l) => l.startsWith('INSERT INTO play '))).toHaveLength(3)
     expect(lines.filter((l) => l.startsWith('INSERT INTO play_participant '))).toHaveLength(3)
+  })
+
+  describe('split into files within the daily write limit', () => {
+    // 成績4行＋参加者4行×人数、移行用プレイヤー3行で見積もる
+    const MAX_WRITES = 200
+    // 10人から作る重複のない2人組40件（移行用プレイヤー10人で30行、成績は1件12行で計510行）
+    const records = Array.from({ length: 10 }, (_, a) => Array.from({ length: 10 - a - 1 }, (_, b) => [a, a + b + 1]))
+      .flat()
+      .slice(0, 40)
+      .map(([a, b], i) => record('001', 2, i, [`架空${a}`, `架空${b}`]))
+    const build = () => {
+      const { plays, playerIds } = assignLegacyPlayers(selectBestRecords(records), sequentialIds())
+      return { plays, playerIds, parts: buildSqlParts(plays, playerIds, RECEIVED_AT, MAX_WRITES) }
+    }
+
+    it('keeps each play with its participants and every file under the limit', () => {
+      const { plays, playerIds, parts } = build()
+      expect(parts.length).toBeGreaterThan(1)
+      for (const part of parts) expect(part.estimatedWrites).toBeLessThanOrEqual(MAX_WRITES)
+      expect(parts.reduce((n, p) => n + p.plays, 0)).toBe(plays.length)
+      expect(parts.map((p) => p.players)).toEqual([playerIds.length, ...Array<number>(parts.length - 1).fill(0)])
+      for (const play of plays) {
+        const containing = parts.filter((part) => part.sql.includes(`('${play.playId}', `))
+        expect(containing).toHaveLength(1)
+        const inserts = containing[0]!.sql.split('\n').filter((l) => l.startsWith('INSERT INTO play_participant '))
+        expect(inserts.filter((l) => l.includes(`('${play.playId}', `))).toHaveLength(1)
+      }
+    })
+
+    it('deletes all legacy data and inserts players only in the first file', () => {
+      const { parts } = build()
+      expect(parts[0]!.sql).toContain('DELETE FROM play WHERE host_player_id IS NULL;')
+      expect(parts[0]!.sql).toContain('INSERT INTO player ')
+      for (const part of parts.slice(1)) {
+        expect(part.sql).not.toContain('DELETE FROM play WHERE host_player_id IS NULL;')
+        expect(part.sql).not.toContain('INSERT INTO player ')
+      }
+    })
+
+    it('imports all files in order and lets a later file be applied again', async () => {
+      const { plays, playerIds, parts } = build()
+      const expected = {
+        plays: plays.length,
+        participants: plays.reduce((n, p) => n + p.participants.length, 0),
+        players: playerIds.length,
+      }
+      for (const part of parts) await apply(part.sql)
+      expect(await countRows()).toEqual(expected)
+
+      await apply(parts.at(-1)!.sql)
+      expect(await countRows()).toEqual(expected)
+      // 1つ目からやり直すと全削除して入れ直すため、2つ目以降を流すまでは1つ目の成績だけになる
+      await apply(parts[0]!.sql)
+      expect(await countRows()).toMatchObject({ plays: parts[0]!.plays })
+    })
   })
 
   it('fails when the song is not registered in the database', async () => {

@@ -1,13 +1,15 @@
 // 旧記録の移行スクリプト。旧スプレッドシートを.xlsxでダウンロードしたファイルを読み、移行用SQLを書き出す。
 // 使い方: npm run migrate-legacy-scores -- --songs imports/songs.csv --out imports/legacy-scores.sql imports/legacy-sheet.xlsx
-// DBへは書き込まない。SQLは`npx wrangler d1 execute DB --remote --file <SQL>`で適用する（READMEの「旧記録の移行」）。
+// DBへは書き込まない。SQLはD1の1日の書き込み上限に収まるよう--outの名前に-1, -2…を付けたファイルに分けて書き出し、
+// `npx wrangler d1 execute DB --remote --file <SQL>`で1日1ファイルずつ番号順に適用する（READMEの「旧記録の移行」）。
 // 実際の名前は画面に出さず、SQLファイルにだけ書く
 import { randomUUID } from 'node:crypto'
 import { readFileSync, writeFileSync } from 'node:fs'
+import path from 'node:path'
 import { parseArgs } from 'node:util'
 import { parse } from 'csv-parse/sync'
 import ExcelJS from 'exceljs'
-import { assignLegacyPlayers, buildSql, parseWorkbook, selectBestRecords, summarize, type Cell, type Sheet } from './legacy-scores'
+import { assignLegacyPlayers, buildSqlParts, parseWorkbook, selectBestRecords, summarize, type Cell, type Sheet } from './legacy-scores'
 
 const fail = (message: string): never => {
   console.error(message)
@@ -58,7 +60,13 @@ const parsed = parseWorkbook(sheets)
 const unknownSongs = [...new Set(parsed.records.map((r) => r.gameSongId))].filter((id) => !knownSongs.has(id))
 const records = parsed.records.filter((r) => knownSongs.has(r.gameSongId))
 const { plays, playerIds } = assignLegacyPlayers(selectBestRecords(records), randomUUID)
-writeFileSync(outPath, buildSql(plays, playerIds, new Date().toISOString()))
+const parts = buildSqlParts(plays, playerIds, new Date().toISOString())
+const { dir, name, ext } = path.parse(outPath)
+const partPaths = parts.map((part, i) => {
+  const partPath = path.join(dir, `${name}-${i + 1}${ext}`)
+  writeFileSync(partPath, part.sql)
+  return partPath
+})
 
 const summary = summarize(plays, playerIds)
 console.log('曲番\t人数\t件数\t最高スコア')
@@ -78,4 +86,9 @@ for (const [reason, items] of reasons) {
 console.log(
   `\n展開した成績 ${records.length}件 → 移行する成績 ${summary.plays}件（参加者 ${summary.participants}件、移行用プレイヤー ${summary.players}人）`,
 )
-console.log(`SQLを書き出しました: ${outPath}`)
+console.log(`\nSQLを${parts.length}ファイルに分けて書き出しました。1日（UTC）に1ファイルずつ番号順に適用してください`)
+parts.forEach((part, i) =>
+  console.log(
+    `  ${partPaths[i]}: 成績 ${part.plays}件、参加者 ${part.participants}件、移行用プレイヤー ${part.players}人、書き込み見込み ${part.estimatedWrites}行`,
+  ),
+)
