@@ -42,7 +42,7 @@ describe('song list page', () => {
   })
 
   it('shows a message when nothing matches', async () => {
-    expect(await html('/?q=存在しない曲')).toContain('条件に一致する曲はありません')
+    expect(await html('/?q=存在しない曲')).toContain('条件に一致する曲がありません')
   })
 })
 
@@ -59,7 +59,7 @@ describe('song ranking page', () => {
       isFullCombo: true,
     })
     const text = await html('/songs/001?players=2')
-    for (const count of [1, 2, 3, 4]) expect(text).toContain(`class="panel panel-${count}"`)
+    for (const count of [1, 2, 3, 4]) expect(text).toContain(`class="box panel panel-${count}"`)
     expect(text).toMatch(/id="tab-2"[^>]*checked/)
     expect(text).not.toMatch(/id="tab-1"[^>]*checked/)
     expect(text.indexOf('ひとりめ')).toBeLessThan(text.indexOf('ふたりめ'))
@@ -166,6 +166,7 @@ describe('view rate limit', () => {
     const page = await app.request('/', { headers }, testEnv)
     expect(page.status).toBe(429)
     expect(page.headers.get('Content-Type')).toContain('text/html')
+    expect(page.headers.get('Retry-After')).toBe('60')
     const api = await app.request('/api/v1/songs', { headers }, testEnv)
     expect(api.status).toBe(429)
     expect(api.headers.get('Retry-After')).toBe('60')

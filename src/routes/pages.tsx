@@ -46,6 +46,8 @@ pages.use('*', limitByIp((env) => env.VIEW_IP_LIMITER))
 pages.onError((error, c) => {
   if (!(error instanceof ApiError)) throw error
   const title = error.status === 429 ? 'アクセスが集中しています' : '表示できません'
+  // レート制限のRetry-After等、エラーに付いたヘッダーもHTML応答に引き継ぐ
+  for (const [name, value] of Object.entries(error.headers)) c.header(name, value)
   return render(c, <ErrorPage title={title} message={error.message} />, error.status)
 })
 

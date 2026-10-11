@@ -76,9 +76,6 @@ const fetchParticipants = async (db: D1Database, playIds: string[]) => {
   return byPlay
 }
 
-// SQLiteのTEXTの既定の並び順（バイナリ比較）と同じ順にする
-const compareText = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0)
-
 const toBoolean = (value: number | null) => (value === null ? null : value === 1)
 
 // 指定した人数ごとのランキングを1ページずつ取得する。limit×人数は100以内にする
@@ -132,15 +129,6 @@ export type BestScore = { score: number }
 export type SoloBestScore = BestScore & { name: string; tiedOthers: number }
 export type BestScores = { '1': SoloBestScore | null; '2': BestScore | null; '3': BestScore | null; '4': BestScore | null }
 
-type SoloTopRow = {
-  song_ref_id: number
-  team_key: string
-  play_id: string
-  is_full_combo: number | null
-  received_at: string
-  name_at_play: string
-}
-
 // 曲ごと・人数ごとの最高スコア（＝ランキング1位の得点）。songRefIdsは100件以内
 export const fetchBestScores = async (db: D1Database, songRefIds: number[]): Promise<Map<number, BestScores>> => {
   const bestBySong = new Map<number, BestScores>(
@@ -157,15 +145,36 @@ export const fetchBestScores = async (db: D1Database, songRefIds: number[]): Pro
          GROUP BY song_ref_id, player_count`,
       )
       .bind(...songRefIds),
+    // ソロの1位: 1位の得点の記録からプレイヤーごとに代表記録を選び（得点は同じなのでFC → 受付日時 → playId）、
+    // ランキングの表示順（受付日時 → playId）で先頭の名前と同点の人数を、曲ごとに1行だけ返す
     db
       .prepare(
-        `SELECT p.song_ref_id, p.team_key, p.play_id, p.is_full_combo, p.received_at, pp.name_at_play
-         FROM play AS p JOIN play_participant AS pp ON pp.play_id = p.play_id
-         WHERE p.song_ref_id IN (${placeholders}) AND p.player_count = 1 AND p.excluded_at IS NULL
-           AND p.score = (
-             SELECT MAX(score) FROM play AS q
-             WHERE q.song_ref_id = p.song_ref_id AND q.player_count = 1 AND q.excluded_at IS NULL
-           )`,
+        `WITH top AS (
+           SELECT song_ref_id, MAX(score) AS score FROM play
+           WHERE song_ref_id IN (${placeholders}) AND player_count = 1 AND excluded_at IS NULL
+           GROUP BY song_ref_id
+         ),
+         representative AS (
+           SELECT p.song_ref_id, p.play_id, p.received_at,
+             ROW_NUMBER() OVER (
+               PARTITION BY p.song_ref_id, p.team_key
+               ORDER BY p.is_full_combo IS 1 DESC, p.received_at, p.play_id
+             ) AS team_order
+           FROM play AS p JOIN top AS t ON t.song_ref_id = p.song_ref_id AND t.score = p.score
+           WHERE p.player_count = 1 AND p.excluded_at IS NULL
+         ),
+         ordered AS (
+           SELECT song_ref_id, play_id,
+             ROW_NUMBER() OVER (PARTITION BY song_ref_id ORDER BY received_at, play_id) AS position,
+             COUNT(*) OVER (PARTITION BY song_ref_id) AS teams
+           FROM representative
+           WHERE team_order = 1
+         )
+         SELECT o.song_ref_id, t.score, pp.name_at_play, o.teams - 1 AS tied_others
+         FROM ordered AS o
+           JOIN top AS t ON t.song_ref_id = o.song_ref_id
+           JOIN play_participant AS pp ON pp.play_id = o.play_id
+         WHERE o.position = 1`,
       )
       .bind(...songRefIds),
   ])
@@ -177,29 +186,14 @@ export const fetchBestScores = async (db: D1Database, songRefIds: number[]): Pro
     best[String(row.player_count) as '2' | '3' | '4'] = { score: row.score }
   }
 
-  // 1位の得点の記録から、ランキングと同じ規則でプレイヤーごとの代表記録を選ぶ（得点は同じなのでFC → 受付日時 → playId）
-  const soloRows = [...(soloResult!.results as SoloTopRow[])].sort(
-    (a, b) =>
-      Number(b.is_full_combo === 1) - Number(a.is_full_combo === 1) ||
-      compareText(a.received_at, b.received_at) ||
-      compareText(a.play_id, b.play_id),
-  )
-  const soloRepresentatives = new Map<number, Map<string, SoloTopRow>>()
-  for (const row of soloRows) {
-    const teams = soloRepresentatives.get(row.song_ref_id) ?? new Map<string, SoloTopRow>()
-    if (!teams.has(row.team_key)) teams.set(row.team_key, row)
-    soloRepresentatives.set(row.song_ref_id, teams)
-  }
-  const soloScores = new Map(maxRows.filter((row) => row.player_count === 1).map((row) => [row.song_ref_id, row.score]))
-  for (const [songRefId, teams] of soloRepresentatives) {
-    // ランキングの表示順（受付日時 → playId）で先頭の代表記録
-    const [first] = [...teams.values()].sort(
-      (a, b) => compareText(a.received_at, b.received_at) || compareText(a.play_id, b.play_id),
-    )
-    const best = bestBySong.get(songRefId)
-    const score = soloScores.get(songRefId)
-    if (!first || !best || score === undefined) continue
-    best['1'] = { score, name: first.name_at_play, tiedOthers: teams.size - 1 }
+  for (const row of soloResult!.results as {
+    song_ref_id: number
+    score: number
+    name_at_play: string
+    tied_others: number
+  }[]) {
+    const best = bestBySong.get(row.song_ref_id)
+    if (best) best['1'] = { score: row.score, name: row.name_at_play, tiedOthers: row.tied_others }
   }
   return bestBySong
 }

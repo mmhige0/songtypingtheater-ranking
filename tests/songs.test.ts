@@ -1,6 +1,7 @@
 import { env } from 'cloudflare:workers'
 import { beforeEach, describe, expect, it } from 'vitest'
 import app from '../src/index'
+import { fetchBestScores } from '../src/lib/ranking'
 import { resetDb } from './helpers'
 import { at, insertPlay, insertPlayers, insertSong } from './view-helpers'
 
@@ -110,5 +111,30 @@ describe('best scores in the song list', () => {
       entries: { participants: { name: string }[] }[]
     }
     expect(ranking.entries[0]!.participants[0]!.name).toBe('Bob')
+  })
+
+  it('returns one row per song even when the top score is tied many times', async () => {
+    const song = await insertSong('001', '架空の曲名')
+    const other = await insertSong('002', '架空の別の曲')
+    const batch = []
+    for (let i = 0; i < 200; i++) {
+      batch.push(
+        env.DB.prepare(
+          `INSERT INTO play (play_id, song_ref_id, score, is_full_combo, received_at, host_player_id, player_count, team_key)
+           VALUES (?, ?, 500, 0, ?, ?, 1, ?)`,
+        ).bind(`t${i}`, song, at(100 + i), A, JSON.stringify([A])),
+        env.DB.prepare(
+          `INSERT INTO play_participant (play_id, player_id, name_at_play, color_at_play) VALUES (?, ?, ?, 'R')`,
+        ).bind(`t${i}`, A, `Alice${i}`),
+      )
+    }
+    await env.DB.batch(batch)
+    await insertPlay({ playId: 'b1', songRefId: song, score: 500, participants: solo(B, 'Bob'), receivedAt: at(150) })
+    await insertPlay({ playId: 'o1', songRefId: other, score: 10, participants: solo(C, 'Carol') })
+
+    const best = await fetchBestScores(env.DB, [song, other])
+    // Aliceの代表は最初の記録（受付が最も早い）なので、Aliceが先頭でBobが同点
+    expect(best.get(song)!['1']).toEqual({ score: 500, name: 'Alice0', tiedOthers: 1 })
+    expect(best.get(other)!['1']).toEqual({ score: 10, name: 'Carol', tiedOthers: 0 })
   })
 })
