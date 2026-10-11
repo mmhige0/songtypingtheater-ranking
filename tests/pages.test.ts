@@ -212,6 +212,15 @@ describe('page errors', () => {
   })
 })
 
+describe('search engines', () => {
+  it('marks pages, API responses and errors as noindex', async () => {
+    for (const path of ['/', '/songs/001', '/songs/999', '/no-such-page', '/api/v1/songs', '/api/v1/no-such-api']) {
+      expect((await get(path)).headers.get('X-Robots-Tag'), path).toBe('noindex, nofollow, noarchive')
+    }
+    expect(await html('/')).toContain('<meta name="robots" content="noindex, nofollow, noarchive"/>')
+  })
+})
+
 describe('view rate limit', () => {
   it('limits pages and view APIs by CF-Connecting-IP', async () => {
     const keys: string[] = []
@@ -228,6 +237,7 @@ describe('view rate limit', () => {
     expect(page.status).toBe(429)
     expect(page.headers.get('Content-Type')).toContain('text/html')
     expect(page.headers.get('Retry-After')).toBe('60')
+    expect(page.headers.get('X-Robots-Tag')).toBe('noindex, nofollow, noarchive')
     const api = await app.request('/api/v1/songs', { headers }, testEnv)
     expect(api.status).toBe(429)
     expect(api.headers.get('Retry-After')).toBe('60')

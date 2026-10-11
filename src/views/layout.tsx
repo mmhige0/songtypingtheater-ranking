@@ -2,6 +2,8 @@ import type { Child } from 'hono/jsx'
 
 export const SITE_NAME = 'Song Typing Theater'
 export const SITE_SUBTITLE = 'ランキング'
+// 検索エンジン向けの指定。全応答のX-Robots-Tagヘッダーと画面のmetaタグで使う
+export const ROBOTS = 'noindex, nofollow, noarchive'
 
 // 色・角丸・影はLyricDataCreator（app/globals.css）のテーマ変数に合わせる。値はHSLの3要素で、hsl(var(--x))として使う
 
@@ -262,6 +264,7 @@ export const Layout = ({ title, children }: { title: string; children: Child }) 
     <head>
       <meta charset="utf-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1" />
+      <meta name="robots" content={ROBOTS} />
       <title>{title ? `${title} - ${SITE_NAME} ${SITE_SUBTITLE}` : `${SITE_NAME} ${SITE_SUBTITLE}`}</title>
       <script dangerouslySetInnerHTML={{ __html: THEME_INIT }} />
       <link rel="preconnect" href="https://fonts.googleapis.com" />

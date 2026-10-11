@@ -379,6 +379,7 @@ levelSortValueはサーバーがlevelから算出し、本文では受け取ら�
 | `/songs/{gameSongId}/players/{1〜4}` | 人数別のランキング（50件ずつのページ送り） |
 
 - 受付日時は表示しない。フルコンボは王冠のマークで表示する。
+- 検索結果に出さない。全応答（画面・API・エラー）に`X-Robots-Tag: noindex, nofollow, noarchive`を付け、画面には同じ内容のmeta robotsも入れる。robots.txtは置かない（巡回を止めると検索エンジンがnoindexを読めなくなるため）。AIクローラーはCloudflareの「AI Scrapers and Crawlers」のブロックで止める（Bot Fight Modeはゲームからの送信を妨げるおそれがあるため使わない）。
 - JSを使わずに動く。JSが有効な場合、検索欄は入力が止まって250ms後に自動で検索し（検索ボタンなし）、「フルコンボのみ」はチェックした時点で反映する。結果だけを差し替えてURLを書き換え、人数のタブを切り替えたときもURLの`players`を書き換える。曲一覧は下までスクロールすると次の50件を読み込む（無効な場合は検索ボタン・Enterで検索、前へ・次へでページ送り）。
 - 存在しない曲・パスは404、不正なクエリは400のHTMLを返す（`/api/`以下はJSON）。429の画面にもRetry-Afterを付ける。
 - 見た目はLyricDataCreatorに合わせる（サイト名「Song Typing Theater」、同じテーマ色の変数・角丸・カード・チップ、Space Grotesk・Inter TightをGoogle Fontsから読み込み）。
