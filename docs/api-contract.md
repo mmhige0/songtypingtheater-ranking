@@ -275,9 +275,92 @@ levelSortValueはサーバーがlevelから算出し、本文では受け取ら�
 - エラーはINVALID_REQUEST（400）、INVALID_TOKEN（401）、PAYLOAD_TOO_LARGE（413）、UNSUPPORTED_MEDIA_TYPE（415）、RATE_LIMITED（429）、SERVER_ERROR（5xx）。応答形式は成績登録と同じ。
 - 送信制限は成績登録・閲覧と別枠とし、初期登録の連続送信を妨げないようにする（v1は管理用キー認証のため制限しない）。
 
-## 閲覧API候補
+## 閲覧API
 
-- GET /api/v1/songs: 曲名・アーティスト・難易度検索、ページ分割。status=approvedの曲だけを返す。LyricDataCreatorはこのAPIで曲情報を取得し、gameSongIdで突き合わせる。
-- GET /api/v1/songs/{songId}/rankings: `{songId}`はgameSongId（成績登録のsongIdと同じ形式）。人数・FC・プレイヤー検索、ページ分割。
+ログイン不要。対象はstatus=approvedの曲と除外されていない記録だけ。送信元IPごとの送信制限は送信APIと別枠（429の形式は送信APIと同じ）。
+クエリの空文字は指定なしとして扱う。不正な値は400 INVALID_REQUEST。playerId・内部IDは返さない。サンプルの値は架空。
 
-ページング・検索中の順位表示・履歴公開の詳細は画面設計と合わせて決める。サンプルのID・得点・時刻は架空の値。
+### GET /api/v1/songs
+
+曲一覧。LyricDataCreatorもこのAPIで曲情報を取得し、gameSongIdで突き合わせる。
+
+| クエリ | 内容 |
+|---|---|
+| q | 曲名またはアーティストの部分一致（英字の大文字・小文字は区別しない。全角・半角、ひらがな・カタカナは同一視しない）。100文字以内 |
+| level | 難易度の完全一致（`5`・`5+`・`5-`・`-`・`?`） |
+| sort | `id`（既定。曲番号の数値順）または`level`（難易度順、難易度なし・`-`・`?`は最後） |
+| page / limit | ページ番号（1〜10000、既定1）と件数（1〜100、既定50） |
+
+```json
+{
+  "songs": [
+    {
+      "gameSongId": "001",
+      "title": "架空の曲名",
+      "artist": "架空のアーティスト",
+      "level": "5+",
+      "bestScores": {
+        "1": { "score": 987654, "name": "架空の名前", "tiedOthers": 1 },
+        "2": { "score": 1234567 },
+        "3": null,
+        "4": null
+      }
+    }
+  ],
+  "page": 1,
+  "limit": 50,
+  "total": 1
+}
+```
+
+- bestScoresは人数ごとの最高スコア（ランキング1位の得点）。記録がなければnull。
+- 1人だけ、1位の名前（代表記録のnameAtPlay）を返す。1位が同点で複数いる場合は、ランキングの表示順で先頭の名前とし、残りの人数をtiedOthersに入れる。
+
+### GET /api/v1/songs/{gameSongId}/rankings
+
+`{gameSongId}`は成績登録のsongIdと同じ形式。存在しない曲は404 NOT_FOUND。記録0件の曲は200で空の一覧。
+
+| クエリ | 内容 |
+|---|---|
+| players | 人数1〜4（必須） |
+| fc | `1`ならFC記録だけからランキングを作る（既定`0`） |
+| name | プレイヤー名の部分一致（代表記録のnameAtPlayが対象。英字の大文字・小文字は区別しない）。100文字以内 |
+| page / limit | ページ番号（1〜10000、既定1）と件数（1〜100、既定50） |
+
+```json
+{
+  "song": { "gameSongId": "001", "title": "架空の曲名", "artist": "架空のアーティスト", "level": "5+" },
+  "players": 2,
+  "entries": [
+    {
+      "rank": 1,
+      "score": 1234567,
+      "isFullCombo": true,
+      "receivedAt": "2026-10-10T13:00:02.120Z",
+      "isLegacy": false,
+      "participants": [
+        { "name": "架空の名前A", "color": "R" },
+        { "name": "架空の名前B", "color": "B" }
+      ]
+    }
+  ],
+  "page": 1,
+  "limit": 50,
+  "total": 1
+}
+```
+
+- 処理順はFC絞り込み → チームごとの代表選択 → 順位付け → 名前検索。FC絞り込み時はFC記録の中で順位を付け直す。名前検索では順位を付け直さず、絞り込み前の順位をそのまま返す。
+- 表示順はscore降順 → receivedAt昇順 → playId辞書順。
+- isFullComboのnullは不明（移行分）。isLegacyは移行分（receivedAtはインポート受付時刻）。isTaipen・gameVersionは返さない。
+
+### 閲覧画面
+
+| パス | 内容 |
+|---|---|
+| `/` | 曲一覧（50件ずつ）。曲名・アーティスト検索、難易度の絞り込み、曲番順・難易度順。人数別の最高スコアと、1人の1位の名前（同点は「ほかN名」）を表示 |
+| `/songs/{gameSongId}` | 1〜4人のランキングを1画面に表示（広い画面は4列、幅1023px以下はタブ）。各人数の上位10件と「すべて見る」。`players`で最初に開くタブ、`fc`・`name`で絞り込み |
+| `/songs/{gameSongId}/players/{1〜4}` | 人数別のランキング（50件ずつのページ送り） |
+
+- 受付日時は日本時間で「受付 YYYY/MM/DD HH:mm」と表示し、達成日時とは表示しない。移行分は「移行記録」と表示する。
+- JSを使わずに動く。存在しない曲・パスは404、不正なクエリは400のHTMLを返す（`/api/`以下はJSON）。
