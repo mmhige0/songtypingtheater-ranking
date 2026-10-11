@@ -26,37 +26,31 @@ export const SONG_CACHE_TTL_MS = 5 * 60 * 1000
 
 type CachedSong = SongSummary & { levelSortValue: number | null; songNumber: number }
 
+// リクエスト間で共有するのは読み込み済みのデータだけ。読み込み中のPromiseを共有すると、
+// 読み込んだリクエストが切断でキャンセルされたとき後続が完了しないPromiseを待ち続けるため
 let songCache: { songs: CachedSong[]; expiresAt: number } | null = null
-// キャッシュ切れに同時に来たリクエストの読み込みを1回にまとめる
-let loading: Promise<CachedSong[]> | null = null
+let generation = 0
 
 // テスト用。DBの中身を入れ替えたときに呼ぶ
 export const clearSongCache = () => {
   songCache = null
-  loading = null
+  generation++
 }
 
-const loadApprovedSongs = (db: D1Database): Promise<CachedSong[]> => {
-  if (songCache && Date.now() < songCache.expiresAt) return Promise.resolve(songCache.songs)
-  if (loading) return loading
-  const current = db
+const loadApprovedSongs = async (db: D1Database): Promise<CachedSong[]> => {
+  if (songCache && Date.now() < songCache.expiresAt) return songCache.songs
+  const loadedGeneration = generation
+  const { results } = await db
     .prepare(`SELECT id, game_song_id, title, artist, level, level_sort_value FROM song WHERE status = 'approved'`)
     .all<SongRow & { level_sort_value: number | null }>()
-    .then(({ results }) => {
-      const songs = results.map((row) => ({
-        ...toSummary(row),
-        levelSortValue: row.level_sort_value,
-        songNumber: Number(row.game_song_id),
-      }))
-      // 読み込み中にclearSongCacheされた場合は古い結果を残さない
-      if (loading === current) songCache = { songs, expiresAt: Date.now() + SONG_CACHE_TTL_MS }
-      return songs
-    })
-    .finally(() => {
-      if (loading === current) loading = null
-    })
-  loading = current
-  return current
+  const songs = results.map((row) => ({
+    ...toSummary(row),
+    levelSortValue: row.level_sort_value,
+    songNumber: Number(row.game_song_id),
+  }))
+  // 読み込み中にclearSongCacheされた場合は古い結果を残さない
+  if (loadedGeneration === generation) songCache = { songs, expiresAt: Date.now() + SONG_CACHE_TTL_MS }
+  return songs
 }
 
 // SQLiteのlower()と同じく英字A〜Zだけを小文字にする（全角英字等は区別したまま）

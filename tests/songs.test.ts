@@ -99,6 +99,18 @@ describe('GET /api/v1/songs', () => {
     }
   })
 
+  it('loads the song list again after a failed load', async () => {
+    const spy = vi.spyOn(env.DB, 'prepare').mockImplementationOnce(() => {
+      throw new Error('D1 unavailable')
+    })
+    try {
+      expect((await get('/api/v1/songs')).status).toBe(500)
+    } finally {
+      spy.mockRestore()
+    }
+    expect((await listSongs()).total).toBe(4)
+  })
+
   it('ignores case only for ASCII letters, like SQLite lower()', async () => {
     await insertSong('020', 'ＦＵＬＬ été')
     const search = (q: string) => listSongs(`?q=${encodeURIComponent(q)}`)
