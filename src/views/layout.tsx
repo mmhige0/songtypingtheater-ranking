@@ -2,6 +2,8 @@ import type { Child } from 'hono/jsx'
 
 export const SITE_NAME = 'Song Typing Theater'
 export const SITE_SUBTITLE = 'ランキング'
+// 検索エンジン向けの指定。全応答のX-Robots-Tagヘッダーと画面のmetaタグで使う
+export const ROBOTS = 'noindex, nofollow, noarchive'
 
 // 色・角丸・影はLyricDataCreator（app/globals.css）のテーマ変数に合わせる。値はHSLの3要素で、hsl(var(--x))として使う
 
@@ -14,7 +16,7 @@ const LIGHT = `
   --destructive: 0 75% 55%; --success: 150 65% 38%;
   --border: 215 20% 88%; --border-subtle: 215 15% 92%;
   --field: 215 25% 98%; --field-border: 215 20% 88%; --ring: 215 80% 55%;
-  --header: 215 30% 97%;
+  --header: 215 30% 97%; --gold: 42 95% 42%;
   --sun: block; --moon: none;
 `
 
@@ -27,7 +29,7 @@ const DARK = `
   --destructive: 0 65% 55%; --success: 150 55% 42%;
   --border: 220 18% 20%; --border-subtle: 220 15% 16%;
   --field: 220 14% 15%; --field-border: 0 0% 32%; --ring: 200 65% 50%;
-  --header: 220 15% 11%;
+  --header: 220 15% 11%; --gold: 45 95% 58%;
   --sun: none; --moon: block;
 `
 
@@ -136,20 +138,16 @@ input[type=search]:focus-visible, select:focus-visible {
   padding: 48px 16px; border: 1px dashed hsl(var(--border)); border-radius: 16px; background: hsl(var(--card) / .8);
   color: hsl(var(--muted-foreground)); font-size: .875rem; text-align: center;
 }
-.fc {
-  display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px;
-  background: hsl(var(--success) / .15); color: hsl(var(--success)); font-size: .6875rem; font-weight: 700;
-  line-height: 1.4; vertical-align: 2px; letter-spacing: .02em;
-}
-.dot { display: inline-block; flex: none; width: .625em; height: .625em; margin-top: .45em; border-radius: 50%; }
-.dot-R { background: #e5484d; } .dot-B { background: #3e7bfa; } .dot-Y { background: #f0b400; } .dot-G { background: #30a46c; }
-.participants { margin: 0; padding: 0; list-style: none; }
-.participants li { display: flex; gap: 8px; min-width: 0; overflow-wrap: break-word; word-break: normal; }
+/* フルコンボの王冠 */
+.fc { display: inline-flex; flex: none; vertical-align: -0.125em; color: hsl(var(--gold)); }
+/* 参加者の名前は「・」でつないで1行に並べ、はみ出す分は「…」で省略する */
+.participants { overflow: hidden; margin: 0; padding: 0; list-style: none; text-overflow: ellipsis; white-space: nowrap; }
+.participants li { display: inline; }
+.participants li:not(:last-child)::after { content: "・"; }
 .pagination { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px; margin: 24px 0 0; }
 .back-link { display: inline-block; margin-bottom: 12px; font-size: .875rem; text-decoration: none; }
 
-/* 曲一覧: 列幅固定の表。狭い画面は枠の中で横スクロールする */
-#sort-state { display: contents; }
+/* 検索欄（入力で自動検索、×で消す） */
 .search-field { position: relative; flex: 1 1 16em; max-width: 440px; min-width: 0; }
 .search-field input[type=search] { width: 100%; padding-right: 40px; }
 .search-field input[type=search]::-webkit-search-cancel-button { -webkit-appearance: none; display: none; }
@@ -160,17 +158,26 @@ input[type=search]:focus-visible, select:focus-visible {
 }
 .search-clear[hidden] { display: none; }
 .search-clear:hover { background: hsl(var(--muted)); color: hsl(var(--foreground)); }
+
+/* ランキング（曲一覧）: 列幅固定の表。狭い画面は枠の中で横スクロールする */
+#sort-state { display: contents; }
 .result-count { margin: 0 0 8px; }
 .table-wrap { overflow-x: auto; }
-table.songs { width: 100%; min-width: 800px; border-collapse: collapse; table-layout: fixed; font-size: .9375rem; }
-.songs .col-no { width: 4.5rem; } .songs .col-level { width: 4rem; } .songs .col-best { width: 7rem; }
+table.songs { width: 100%; min-width: 1080px; border-collapse: collapse; table-layout: fixed; font-size: .9375rem; }
+.songs .col-no { width: 4.5rem; } /* 人数が多いほど名前が長いので広くする（曲別ランキングの4列も同じ比率） */
+.songs .col-best-1 { width: 9.5rem; } .songs .col-best-2 { width: 11rem; }
+.songs .col-best-3 { width: 12.5rem; } .songs .col-best-4 { width: 14rem; } .songs .col-level { width: 4rem; }
 .songs th {
   padding: 12px; font-size: .75rem; font-weight: 600; letter-spacing: .025em; text-align: left;
   color: hsl(var(--muted-foreground)); white-space: nowrap;
 }
 .songs td { padding: 10px 12px; border-top: 1px solid hsl(var(--border-subtle)); vertical-align: top; }
-.songs tbody tr:hover { background: hsl(var(--primary) / .04); }
-.songs .best { text-align: right; }
+/* No.・曲名・Lv.の3列はセル全体が曲別ランキングへのリンク */
+.songs .song-cell { position: relative; }
+.cell-link { color: inherit; text-decoration: none; }
+.cell-link::after { content: ""; position: absolute; inset: 0; }
+.songs tr:has(.song-cell:hover) .song-cell { background: hsl(var(--primary) / .07); }
+.songs tr:has(.song-cell:hover) .song-title { color: hsl(var(--primary)); }
 .songs .no { font-weight: 600; color: hsl(var(--muted-foreground)); white-space: nowrap; }
 .songs .level { font-weight: 600; white-space: nowrap; }
 .sort-link { display: inline-flex; align-items: center; color: inherit; text-decoration: none; }
@@ -180,17 +187,23 @@ table.songs { width: 100%; min-width: 800px; border-collapse: collapse; table-la
   display: block; overflow: hidden; font-weight: 600; color: hsl(var(--foreground));
   text-decoration: none; text-overflow: ellipsis; white-space: nowrap;
 }
-.song-title:hover { color: hsl(var(--primary)); }
-.song-artist, .best-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.song-artist { margin-top: 2px; font-size: .8125rem; color: hsl(var(--secondary-foreground)); }
-.best a { font-weight: 600; color: hsl(var(--foreground)); text-decoration: none; white-space: nowrap; }
-.best a:hover { color: hsl(var(--primary)); }
+.song-artist { overflow: hidden; margin-top: 2px; font-size: .8125rem; color: hsl(var(--secondary-foreground)); text-overflow: ellipsis; white-space: nowrap; }
+/* 1位はプレイヤー名を主に、スコアとFCを下に添える */
+/* 人数のセルは全体がその人数のランキングへのリンク。押せるのはそのセルだけなので、ハイライトもセル単位 */
+.songs .best { position: relative; }
+.songs .best:hover { background: hsl(var(--primary) / .07); }
+.best-link { display: block; min-width: 0; color: hsl(var(--foreground)); }
+.best-empty { color: hsl(var(--muted-foreground)); }
+.best-link .participants { font-weight: 700; }
+.best-tied { display: block; }
+.best-score { display: inline-flex; align-items: center; gap: 4px; margin-top: 2px; font-size: 1rem; font-weight: 600; }
+.best-link:hover .participants, .best-link:hover .best-score { color: hsl(var(--primary)); }
 /* JSが有効なら無限スクロール、無効なら前へ・次へのリンク */
 .load-more { display: none; }
 .js .load-more { display: block; min-height: 40px; padding: 16px 0; color: hsl(var(--muted-foreground)); font-size: .875rem; text-align: center; }
 .js .pagination-fallback { display: none; }
 
-/* 曲別ランキング: 広い画面は4人数を横に並べ、狭い画面はチップ（JSなし）で切り替える */
+/* 曲別ランキング: 広い画面は4人数を横に並べ、狭い画面はチップのタブ（JSなし）で切り替える */
 .tab-input { position: absolute; opacity: 0; pointer-events: none; }
 .tabs { margin-bottom: 16px; }
 .panel { display: none; min-width: 0; overflow: hidden; }
@@ -204,29 +217,42 @@ table.songs { width: 100%; min-width: 800px; border-collapse: collapse; table-la
 .panel-title { display: none; padding: 16px 16px 4px; font-size: 1.125rem; }
 @media (min-width: 1024px) {
   .tabs { display: none; }
-  .panels { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px; align-items: start; }
+  .panels { display: grid; grid-template-columns: minmax(0, 9.5fr) minmax(0, 11fr) minmax(0, 12.5fr) minmax(0, 14fr); gap: 20px; align-items: start; }
   .panel { display: block; }
   .panel-title { display: block; }
 }
+/* 順位とスコアを1行目に、名前をその下に大きく出す */
+.ranking-list { margin: 0; padding: 0; list-style: none; }
+.entry { padding: 12px 16px; }
+.entry + .entry { border-top: 1px solid hsl(var(--border-subtle)); }
+.entry-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 2px; }
+.entry-rank { font-size: 1.125rem; font-weight: 700; white-space: nowrap; }
+.entry-rank.rank-1 { color: hsl(var(--primary)); }
+.entry-score { display: inline-flex; align-items: center; gap: 6px; font-size: 1.375rem; font-weight: 700; white-space: nowrap; }
+.entry-score .fc { font-size: 1.0625rem; }
+.entry .participants { font-size: 1.0625rem; font-weight: 600; line-height: 1.4; }
 .panel-empty { padding: 32px 16px; color: hsl(var(--muted-foreground)); font-size: .875rem; text-align: center; }
 .panel-more { display: block; padding: 12px 16px; border-top: 1px solid hsl(var(--border-subtle)); font-size: .875rem; font-weight: 600; text-decoration: none; }
 .panel-more:hover { background: hsl(var(--primary) / .06); }
 table.ranking { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .ranking th {
-  padding: 10px 12px; font-size: .75rem; font-weight: 600; letter-spacing: .025em; text-align: left;
+  padding: 10px 16px; font-size: .75rem; font-weight: 600; letter-spacing: .025em; text-align: left;
   color: hsl(var(--muted-foreground));
 }
-.ranking td { padding: 10px 12px; border-top: 1px solid hsl(var(--border-subtle)); vertical-align: top; }
-.ranking .rank { width: 3.25rem; font-weight: 700; white-space: nowrap; }
+.ranking td { padding: 14px 16px; border-top: 1px solid hsl(var(--border-subtle)); vertical-align: middle; }
+.ranking .rank { width: 5rem; font-size: 1.25rem; font-weight: 700; white-space: nowrap; }
 .ranking .rank-1 { color: hsl(var(--primary)); }
-.ranking .score { width: 6.5rem; font-weight: 600; text-align: right; white-space: nowrap; }
-/* FC印はスコアの下に置き、狭い列でも名前の幅を確保する */
-.ranking .score .fc { display: block; width: fit-content; margin: 4px 0 0 auto; }
-.panel .ranking { font-size: .875rem; }
-.panel .ranking th, .panel .ranking td { padding: 8px 10px; }
-.panel .ranking .rank { width: 2.75rem; }
-.panel .ranking .score { width: 5.75rem; }
-.ranking .received { margin-top: 2px; font-size: .75rem; color: hsl(var(--muted-foreground)); }
+.ranking .participants { font-size: 1.125rem; font-weight: 600; line-height: 1.4; }
+.ranking .score { width: 12rem; font-size: 1.5rem; font-weight: 700; text-align: right; white-space: nowrap; }
+.ranking .score .fc { margin-right: 6px; font-size: 1.125rem; }
+.ranking th.rank, .ranking th.score { font-size: .75rem; font-weight: 600; }
+@media (max-width: 639px) {
+  .ranking th, .ranking td { padding-left: 10px; padding-right: 10px; }
+  .ranking td.rank { font-size: 1.0625rem; } .ranking .rank { width: 3.5rem; }
+  .ranking .participants { font-size: 1rem; }
+  .ranking td.score { font-size: 1.1875rem; } .ranking .score { width: 8.5rem; }
+  .ranking .score .fc { margin-right: 4px; font-size: 1rem; }
+}
 `
 
 // 保存したテーマ（light・dark）を描画前に反映する。保存がなければ端末の設定に従う。
@@ -263,6 +289,7 @@ export const Layout = ({ title, children }: { title: string; children: Child }) 
     <head>
       <meta charset="utf-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1" />
+      <meta name="robots" content={ROBOTS} />
       <title>{title ? `${title} - ${SITE_NAME} ${SITE_SUBTITLE}` : `${SITE_NAME} ${SITE_SUBTITLE}`}</title>
       <script dangerouslySetInnerHTML={{ __html: THEME_INIT }} />
       <link rel="preconnect" href="https://fonts.googleapis.com" />

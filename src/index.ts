@@ -5,8 +5,15 @@ import { installations } from './routes/installations'
 import { pages, renderNotFound } from './routes/pages'
 import { playsRoute } from './routes/plays'
 import { songsRoute } from './routes/songs'
+import { ROBOTS } from './views/layout'
 
 const app = new Hono<{ Bindings: Env }>()
+
+// 検索結果に出さない。巡回は止めない（robots.txtで止めると検索エンジンがnoindexを読めなくなるため）
+app.use('*', async (c, next) => {
+  await next()
+  c.header('X-Robots-Tag', ROBOTS)
+})
 
 app.get('/api/v1/health', (c) => c.json({ status: 'ok' }))
 app.route('/api/v1/admin/songs', adminSongs)

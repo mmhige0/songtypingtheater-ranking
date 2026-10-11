@@ -100,7 +100,48 @@ describe('best scores in the song list', () => {
       ],
     })
     const [entry] = (await listSongs()).songs
-    expect(entry!.bestScores).toEqual({ '1': { score: 300, name: 'Alice', tiedOthers: 0 }, '2': { score: 800 }, '3': null, '4': null })
+    expect(entry!.bestScores).toEqual({
+      '1': { score: 300, name: 'Alice', isFullCombo: false, participants: [{ name: 'Alice', color: 'R' }], tiedOthers: 0 },
+      '2': {
+        score: 800,
+        isFullCombo: false,
+        participants: [
+          { name: 'Alice', color: 'R' },
+          { name: 'Carol', color: 'B' },
+        ],
+        tiedOthers: 0,
+      },
+      '3': null,
+      '4': null,
+    })
+  })
+
+  it('returns the first tied team with all members in color order and its full combo', async () => {
+    const song = await insertSong('001', '架空の曲名')
+    const withAlice = (id: string, name: string) => [
+      { id, name, color: 'Y' as const },
+      { id: A, name: 'Alice', color: 'B' as const },
+    ]
+    await insertPlay({
+      playId: 'd1',
+      songRefId: song,
+      score: 700,
+      participants: withAlice(B, 'Bob'),
+      isFullCombo: true,
+      receivedAt: at(10),
+    })
+    await insertPlay({ playId: 'd2', songRefId: song, score: 700, participants: withAlice(C, 'Carol'), receivedAt: at(20) })
+
+    const [entry] = (await listSongs()).songs
+    expect((entry!.bestScores as Record<string, unknown>)['2']).toEqual({
+      score: 700,
+      isFullCombo: true,
+      participants: [
+        { name: 'Alice', color: 'B' },
+        { name: 'Bob', color: 'Y' },
+      ],
+      tiedOthers: 1,
+    })
   })
 
   it('shows the first tied solo player in ranking order and counts the others once each', async () => {
@@ -148,7 +189,8 @@ describe('best scores in the song list', () => {
 
     const best = await fetchBestScores(env.DB, [song, other])
     // Aliceの代表は最初の記録（受付が最も早い）なので、Aliceが先頭でBobが同点
-    expect(best.get(song)!['1']).toEqual({ score: 500, name: 'Alice0', tiedOthers: 1 })
-    expect(best.get(other)!['1']).toEqual({ score: 10, name: 'Carol', tiedOthers: 0 })
+    expect(best.get(song)!['1']).toMatchObject({ score: 500, name: 'Alice0', tiedOthers: 1 })
+    expect(best.get(song)!['1']!.participants).toHaveLength(1)
+    expect(best.get(other)!['1']).toMatchObject({ score: 10, name: 'Carol', tiedOthers: 0 })
   })
 })
