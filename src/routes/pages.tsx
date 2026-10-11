@@ -5,15 +5,15 @@ import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { ApiError } from '../lib/http'
 import { limitByIp } from '../lib/rate-limit'
 import { fetchBestScores, fetchRankings } from '../lib/ranking'
-import { findApprovedSong, listLevels, searchSongs } from '../lib/song-query'
+import { findApprovedSong, searchSongs } from '../lib/song-query'
 import {
   PLAYER_COUNTS,
   parseFlag,
-  parseLevel,
   parsePage,
   parsePlayerCount,
   parseSearchText,
   parseSongSort,
+  parseSortDir,
 } from '../lib/view-query'
 import { ErrorPage, PlayerRankingPage, SongListPage, SongRankingPage } from '../views/pages'
 
@@ -53,13 +53,17 @@ pages.onError((error, c) => {
 
 pages.get('/', async (c) => {
   const q = parseSearchText(c.req.query('q'), 'q')
-  const level = parseLevel(c.req.query('level'))
   const sort = parseSongSort(c.req.query('sort'))
+  const dir = parseSortDir(c.req.query('dir'))
   const page = parsePage(c.req.query('page'))
-  const [{ songs, total }, levels] = await Promise.all([
-    searchSongs(c.env.DB, { q, level, sort, limit: SONG_LIST_LIMIT, offset: (page - 1) * SONG_LIST_LIMIT }),
-    listLevels(c.env.DB),
-  ])
+  const { songs, total } = await searchSongs(c.env.DB, {
+    q,
+    level: null,
+    sort,
+    dir,
+    limit: SONG_LIST_LIMIT,
+    offset: (page - 1) * SONG_LIST_LIMIT,
+  })
   const bestScores = await fetchBestScores(
     c.env.DB,
     songs.map((song) => song.id),
@@ -68,10 +72,9 @@ pages.get('/', async (c) => {
     c,
     <SongListPage
       songs={songs.map((song) => ({ ...song, bestScores: bestScores.get(song.id)! }))}
-      levels={levels}
       q={q}
-      level={level}
       sort={sort}
+      dir={dir}
       page={page}
       limit={SONG_LIST_LIMIT}
       total={total}

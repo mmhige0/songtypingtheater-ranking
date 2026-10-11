@@ -70,3 +70,13 @@ export const parseSongSort = (value: string | undefined): SongSort => {
   if (!SONG_SORTS.includes(raw as SongSort)) throw invalidRequest('sortはidまたはlevelにしてください')
   return raw as SongSort
 }
+
+export const SORT_DIRS = ['asc', 'desc'] as const
+export type SortDir = (typeof SORT_DIRS)[number]
+
+export const parseSortDir = (value: string | undefined): SortDir => {
+  const raw = optional(value)
+  if (raw === undefined) return 'asc'
+  if (!SORT_DIRS.includes(raw as SortDir)) throw invalidRequest('dirはascまたはdescにしてください')
+  return raw as SortDir
+}
