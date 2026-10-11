@@ -38,12 +38,33 @@ export const FullComboMark = () => (
 export const Participants = ({ participants }: { participants: Participant[] }) => (
   <ul class="participants">
     {participants.map((p) => (
-      <li>{p.name}</li>
+      <li title={p.name}>{p.name}</li>
     ))}
   </ul>
 )
 
-// パネル・枠の中に置く順位表。枠は呼び出し側で付ける
+// 幅の狭い列に置く順位の一覧。順位とスコアを1行目に、参加者の名前をその下に大きく出す。枠は呼び出し側で付ける
+export const RankingList = ({ entries, emptyMessage }: { entries: RankingEntry[]; emptyMessage: string }) =>
+  entries.length === 0 ? (
+    <p class="panel-empty">{emptyMessage}</p>
+  ) : (
+    <ol class="ranking-list">
+      {entries.map((entry) => (
+        <li class="entry">
+          <div class="entry-head">
+            <span class={entry.rank === 1 ? 'entry-rank rank-1 num' : 'entry-rank num'}>{entry.rank}位</span>
+            <span class="entry-score num">
+              {entry.isFullCombo === true && <FullComboMark />}
+              {formatScore(entry.score)}
+            </span>
+          </div>
+          <Participants participants={entry.participants} />
+        </li>
+      ))}
+    </ol>
+  )
+
+// 画面幅いっぱいに置く順位表。枠は呼び出し側で付ける
 export const RankingTable = ({ entries, emptyMessage }: { entries: RankingEntry[]; emptyMessage: string }) =>
   entries.length === 0 ? (
     <p class="panel-empty">{emptyMessage}</p>

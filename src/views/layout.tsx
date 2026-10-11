@@ -162,7 +162,7 @@ input[type=search]:focus-visible, select:focus-visible {
 .result-count { margin: 0 0 8px; }
 .table-wrap { overflow-x: auto; }
 table.songs { width: 100%; min-width: 960px; border-collapse: collapse; table-layout: fixed; font-size: .9375rem; }
-.songs .col-no { width: 4.5rem; } .songs .col-title { width: 18rem; } .songs .col-level { width: 4rem; }
+.songs .col-no { width: 4.5rem; } .songs .col-best { width: 9.5rem; } .songs .col-level { width: 4rem; }
 .songs th {
   padding: 12px; font-size: .75rem; font-weight: 600; letter-spacing: .025em; text-align: left;
   color: hsl(var(--muted-foreground)); white-space: nowrap;
@@ -185,7 +185,11 @@ table.songs { width: 100%; min-width: 960px; border-collapse: collapse; table-la
 }
 .song-artist { overflow: hidden; margin-top: 2px; font-size: .8125rem; color: hsl(var(--secondary-foreground)); text-overflow: ellipsis; white-space: nowrap; }
 /* 1位はプレイヤー名を主に、スコアとFCを下に添える */
-.best-link { display: block; min-width: 0; color: hsl(var(--foreground)); text-decoration: none; }
+/* 人数のセルは全体がその人数のランキングへのリンク。押せるのはそのセルだけなので、ハイライトもセル単位 */
+.songs .best { position: relative; }
+.songs .best:hover { background: hsl(var(--primary) / .07); }
+.best-link { display: block; min-width: 0; color: hsl(var(--foreground)); }
+.best-empty { color: hsl(var(--muted-foreground)); }
 .best-link .participants { font-weight: 700; }
 .best-link .participants li { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .best-tied { display: block; }
@@ -196,7 +200,7 @@ table.songs { width: 100%; min-width: 960px; border-collapse: collapse; table-la
 .js .load-more { display: block; min-height: 40px; padding: 16px 0; color: hsl(var(--muted-foreground)); font-size: .875rem; text-align: center; }
 .js .pagination-fallback { display: none; }
 
-/* 曲別ランキング: 人数はチップのタブ（JSなし）で切り替え、選んだ人数を画面幅いっぱいに大きく出す */
+/* 曲別ランキング: 広い画面は4人数を横に並べ、狭い画面はチップのタブ（JSなし）で切り替える */
 .tab-input { position: absolute; opacity: 0; pointer-events: none; }
 .tabs { margin-bottom: 16px; }
 .panel { display: none; min-width: 0; overflow: hidden; }
@@ -205,7 +209,25 @@ table.songs { width: 100%; min-width: 960px; border-collapse: collapse; table-la
   border-color: hsl(var(--primary)); background: hsl(var(--primary)); color: hsl(var(--primary-foreground));
 }
 .tab-input:focus-visible ~ .tabs { outline: 2px solid hsl(var(--ring)); outline-offset: 4px; border-radius: 999px; }
-#tab-1:checked ~ .panel-1, #tab-2:checked ~ .panel-2, #tab-3:checked ~ .panel-3, #tab-4:checked ~ .panel-4 { display: block; }
+#tab-1:checked ~ .panels .panel-1, #tab-2:checked ~ .panels .panel-2,
+#tab-3:checked ~ .panels .panel-3, #tab-4:checked ~ .panels .panel-4 { display: block; }
+.panel-title { display: none; padding: 16px 16px 4px; font-size: 1.125rem; }
+@media (min-width: 1024px) {
+  .tabs { display: none; }
+  .panels { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px; align-items: start; }
+  .panel { display: block; }
+  .panel-title { display: block; }
+}
+/* 順位とスコアを1行目に、名前をその下に大きく出す */
+.ranking-list { margin: 0; padding: 0; list-style: none; }
+.entry { padding: 12px 16px; }
+.entry + .entry { border-top: 1px solid hsl(var(--border-subtle)); }
+.entry-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 2px; }
+.entry-rank { font-size: 1.125rem; font-weight: 700; white-space: nowrap; }
+.entry-rank.rank-1 { color: hsl(var(--primary)); }
+.entry-score { display: inline-flex; align-items: center; gap: 6px; font-size: 1.375rem; font-weight: 700; white-space: nowrap; }
+.entry-score .fc { font-size: 1.0625rem; }
+.entry .participants { font-size: 1.0625rem; font-weight: 600; line-height: 1.4; }
 .panel-empty { padding: 32px 16px; color: hsl(var(--muted-foreground)); font-size: .875rem; text-align: center; }
 .panel-more { display: block; padding: 12px 16px; border-top: 1px solid hsl(var(--border-subtle)); font-size: .875rem; font-weight: 600; text-decoration: none; }
 .panel-more:hover { background: hsl(var(--primary) / .06); }

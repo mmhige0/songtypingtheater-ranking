@@ -7,6 +7,7 @@ import {
   LiveSearchScript,
   Pagination,
   Participants,
+  RankingList,
   RankingTable,
   SearchField,
   toQuery,
@@ -114,13 +115,20 @@ const SortHeader = ({
   )
 }
 
-// 人数ごとの1位。名前を主に、スコアとFCを添える。同点の1位が他にもいれば人数（ソロ）・組数を出す
+// 人数ごとの1位。名前を主に、スコアとFCを添える。同点の1位が他にもいれば人数（ソロ）・組数を出す。
+// セル全体（記録なしも含む）がその人数のランキングへのリンク
 const BestCell = ({ song, count, best }: { song: SongSummary; count: PlayerCount; best: BestScore | null }) => (
   <td class="best">
     {best === null ? (
-      <span class="muted">—</span>
+      <a
+        class="cell-link best-empty muted"
+        href={`${songPath(song.gameSongId)}${toQuery({ players: count })}`}
+        aria-label={`${count}人ランキング（記録なし）`}
+      >
+        —
+      </a>
     ) : (
-      <a class="best-link" href={`${songPath(song.gameSongId)}${toQuery({ players: count })}`}>
+      <a class="cell-link best-link" href={`${songPath(song.gameSongId)}${toQuery({ players: count })}`}>
         <Participants participants={best.participants} />
         {best.tiedOthers > 0 && (
           <span class="best-tied small muted">
@@ -161,7 +169,7 @@ export const SongListPage = ({ songs, q, sort, dir, page, limit, total }: SongLi
                 <col class="col-title" />
                 <col class="col-level" />
                 {PLAYER_COUNTS.map(() => (
-                  <col />
+                  <col class="col-best" />
                 ))}
               </colgroup>
               <thead>
@@ -219,7 +227,7 @@ export const SongListPage = ({ songs, q, sort, dir, page, limit, total }: SongLi
   </Layout>
 )
 
-// ---- 曲別ランキング（1〜4人をタブで切り替え） ----
+// ---- 曲別ランキング（広い画面は1〜4人を横に並べ、狭い画面はタブで切り替え） ----
 
 export type SongRankingProps = {
   song: SongSummary
@@ -246,7 +254,7 @@ export const SongRankingPage = ({ song, rankings, selected, fullComboOnly, name,
     />
 
     <div id="ranking-results" class="rankings">
-      {/* 人数のタブ（JSなしで切り替わる）。フォームと一緒に送信し、選択中の人数を保つ */}
+      {/* 狭い画面の人数のタブ（JSなしで切り替わる）。フォームと一緒に送信し、選択中の人数を保つ */}
       {PLAYER_COUNTS.map((count) => (
         <input
           class="tab-input"
@@ -265,22 +273,25 @@ export const SongRankingPage = ({ song, rankings, selected, fullComboOnly, name,
           </label>
         ))}
       </div>
-      {PLAYER_COUNTS.map((count) => {
-        const ranking = rankings.get(count)!
-        return (
-          <section class={`box panel panel-${count}`} aria-label={`${count}人ランキング`}>
-            <RankingTable entries={ranking.entries} emptyMessage={emptyMessage(fullComboOnly || name !== null)} />
-            {ranking.total > limit && (
-              <a
-                class="panel-more"
-                href={`${songPath(song.gameSongId)}/players/${count}${toQuery({ fc: fullComboOnly, name })}`}
-              >
-                すべて見る（{ranking.total}件）
-              </a>
-            )}
-          </section>
-        )
-      })}
+      <div class="panels">
+        {PLAYER_COUNTS.map((count) => {
+          const ranking = rankings.get(count)!
+          return (
+            <section class={`box panel panel-${count}`} aria-label={`${count}人ランキング`}>
+              <h2 class="panel-title">{count}人</h2>
+              <RankingList entries={ranking.entries} emptyMessage={emptyMessage(fullComboOnly || name !== null)} />
+              {ranking.total > limit && (
+                <a
+                  class="panel-more"
+                  href={`${songPath(song.gameSongId)}/players/${count}${toQuery({ fc: fullComboOnly, name })}`}
+                >
+                  すべて見る（{ranking.total}件）
+                </a>
+              )}
+            </section>
+          )
+        })}
+      </div>
     </div>
     <LiveSearchScript />
   </Layout>
