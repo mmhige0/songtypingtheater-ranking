@@ -37,7 +37,7 @@
 - v1の曲登録は管理者のみ。管理用キー（Bearer）で認証するPUT /api/v1/admin/songs/{gameSongId}と登録スクリプトで行い、管理画面は後回し。
 - 曲一覧シートの曲番はgameSongIdと同じ。シートは移行完了後に廃止し、移行時に曲マスターを一度だけ初期登録する。
 - 同期方向はランキング→LyricDataCreatorの一方向（公開曲一覧APIを利用）。譜面・YouTube URLはランキングに保存しない。
-- levelSortValueはLyricDataCreatorと同じ算出式（整数部×3、+は+1、-は-1）。
+- levelSortValueはLyricDataCreatorと同じ算出式（整数部×3、+は+1、-は-1）。難易度は数値形式のほか`-`（未定）・`?`（不明）も受理し、文字列のまま保存する。この2つとnullのlevelSortValueはnull。
 - 譜面投稿フロー（投稿→未承認曲として仮登録→承認・本登録）は将来構想。v1には入れない。
 
 - 構成はCloudflare無料プラン（Workers＋Hono、D1、Drizzle）。比較検討は行わない。詳細は[システム構成](architecture.md)。

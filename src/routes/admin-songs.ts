@@ -17,7 +17,7 @@ const parseSongInput = (body: unknown): SongInput => {
     throw invalidRequest('artistは制御文字を含まない1〜200文字の文字列またはnullにしてください')
   }
   if (level !== null && (typeof level !== 'string' || !isValidLevel(level))) {
-    throw invalidRequest('levelは「5」「5+」「5-」の形式の文字列またはnullにしてください')
+    throw invalidRequest('levelは「5」「5+」「5-」の形式、「-」「?」、またはnullにしてください')
   }
   return { title, artist, level }
 }

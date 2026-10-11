@@ -96,6 +96,11 @@ describe('PUT /api/v1/admin/songs/:gameSongId', () => {
     expect(playSong).toBe(before?.id)
   })
 
+  it.each(['-', '?'])('stores the placeholder level %s without a sort value', async (level) => {
+    expect((await put('001', { ...SONG, level })).status).toBe(201)
+    expect(await songRow('001')).toMatchObject({ level, level_sort_value: null })
+  })
+
   it('keeps leading zeros as distinct song ids', async () => {
     expect((await put('001', SONG)).status).toBe(201)
     expect((await put('0001', SONG)).status).toBe(201)
