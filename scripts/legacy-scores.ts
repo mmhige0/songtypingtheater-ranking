@@ -23,7 +23,7 @@ const TITLE_SONG_ID = /^【([0-9]+)】/
 // 1文に含める行数。D1の1文あたりのSQL長の上限に収まるよう分割する
 const ROWS_PER_INSERT = 100
 
-export type SkipReason = 'blank-name' | 'missing-name' | 'missing-score' | 'invalid-score' | 'error-value'
+export type SkipReason = 'missing-name' | 'missing-score' | 'invalid-score' | 'error-value'
 
 export type LegacyRecord = {
   gameSongId: string
@@ -124,12 +124,8 @@ export const parseWorkbook = (sheets: readonly Sheet[]): ParseResult => {
           skip('missing-name')
           continue
         }
-        // 名前は空白を除去せず完全一致で扱う。空白だけの名前は名前とみなさない
+        // 名前は空白を除去せず完全一致で扱う。APIと同じく空白だけの名前も1つの名前とする
         const names = nameCells.map((cell) => text(cell)!)
-        if (names.some((name) => name.trim() === '')) {
-          skip('blank-name')
-          continue
-        }
         result.records.push({ gameSongId: tab, players: block.players, score, names })
       }
     }

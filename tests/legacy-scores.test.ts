@@ -89,10 +89,15 @@ describe('parseWorkbook', () => {
     expect(result.records).toEqual([record('001', 1, 100, [' アリス '])])
   })
 
+  it('keeps whitespace-only names as names, as the API accepts them', () => {
+    const result = parseWorkbook([songSheet('001', [row(1, { one: [100, ' '], two: [90, 'アリス', '　'] })])])
+    expect(result.skipped).toEqual([])
+    expect(result.records).toEqual([record('001', 1, 100, [' ']), record('001', 2, 90, ['アリス', '　'])])
+  })
+
   it('skips incomplete or invalid entries with their location but without names', () => {
     const result = parseWorkbook([
       songSheet('001', [
-        row(1, { one: [100, ' '], two: [100, 'アリス', '　'] }),
         row(2, { one: [100, null], two: [null, 'アリス', 'ボブ'] }),
         row(3, { one: ['abc', 'アリス'], two: [-1, 'アリス', 'ボブ'], three: [{ error: '#REF!' }, 'アリス', 'ボブ', 'キャロル'] }),
         row(4, {}),
@@ -100,8 +105,6 @@ describe('parseWorkbook', () => {
     ])
     expect(result.records).toEqual([])
     expect(result.skipped).toEqual([
-      { gameSongId: '001', players: 1, rank: '1', reason: 'blank-name' },
-      { gameSongId: '001', players: 2, rank: '1', reason: 'blank-name' },
       { gameSongId: '001', players: 1, rank: '2', reason: 'missing-name' },
       { gameSongId: '001', players: 2, rank: '2', reason: 'missing-score' },
       { gameSongId: '001', players: 1, rank: '3', reason: 'invalid-score' },
@@ -158,6 +161,19 @@ describe('selectBestRecords', () => {
 })
 
 describe('assignLegacyPlayers', () => {
+  it('treats each exact whitespace-only name as its own player', () => {
+    const { plays, playerIds } = assignLegacyPlayers(
+      [record('001', 2, 100, ['アリス', ' ']), record('001', 2, 90, ['ボブ', '  ']), record('002', 1, 80, [' '])],
+      sequentialIds(),
+    )
+    expect(playerIds).toEqual(['legacy-00001', 'legacy-00002', 'legacy-00003', 'legacy-00004'])
+    expect(plays.map((p) => p.participants.map((x) => x.playerId))).toEqual([
+      ['legacy-00001', 'legacy-00002'],
+      ['legacy-00003', 'legacy-00004'],
+      ['legacy-00002'],
+    ])
+  })
+
   it('reuses one id per exact name and gives repeated names in a team separate ids', () => {
     const { plays, playerIds } = assignLegacyPlayers(
       [record('001', 2, 100, ['アリス', 'ボブ']), record('001', 3, 90, ['アリス', 'アリス', 'ボブ'])],
