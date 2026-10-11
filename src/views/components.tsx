@@ -1,7 +1,5 @@
 import type { Participant, RankingEntry } from '../lib/ranking'
 
-const COLOR_NAMES = { R: '赤', B: '青', Y: '黄', G: '緑' } as const
-
 export const formatScore = (score: number) => score.toLocaleString('en-US')
 
 // 値がnull・空文字・falseの項目を除いてクエリ文字列を作る
@@ -36,13 +34,11 @@ export const FullComboMark = () => (
   </span>
 )
 
+// 参加者の名前（色は表示しない。並びは色のR→B→Y→G順）
 export const Participants = ({ participants }: { participants: Participant[] }) => (
   <ul class="participants">
     {participants.map((p) => (
-      <li>
-        <span class={`dot dot-${p.color}`} title={COLOR_NAMES[p.color]} />
-        <span>{p.name}</span>
-      </li>
+      <li>{p.name}</li>
     ))}
   </ul>
 )

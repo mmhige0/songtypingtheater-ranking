@@ -40,6 +40,10 @@ describe('song list page', () => {
     expect(text).toContain('ソロの人')
     expect(text).toContain('href="/songs/001?players=1"')
     expect(text).toContain('<h1 class="page-title">ランキング</h1>')
+    // No.・曲名・Lv.の3セルがどれも曲別ランキングへのリンク（Tab移動は曲名だけ）
+    expect(text.match(/class="cell-link[^"]*" href="\/songs\/001"/g)).toHaveLength(3)
+    expect(text.match(/href="\/songs\/001" tabindex="-1" aria-hidden="true"/g)).toHaveLength(2)
+    expect(text).not.toContain('class="dot')
   })
 
   it('shows every member of the top team and the full combo mark', async () => {

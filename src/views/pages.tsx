@@ -177,16 +177,25 @@ export const SongListPage = ({ songs, q, sort, dir, page, limit, total }: SongLi
               <tbody id="song-rows">
                 {songs.map((song) => (
                   <tr>
-                    <td class="no num">{song.gameSongId}</td>
-                    <td>
-                      <a class="song-title" href={songPath(song.gameSongId)} title={song.title}>
+                    {/* No.・曲名・Lv.のどこを押しても曲別ランキングへ。読み上げ・Tab移動は曲名のリンクだけにする */}
+                    <td class="song-cell no num">
+                      <a class="cell-link" href={songPath(song.gameSongId)} tabindex={-1} aria-hidden="true">
+                        {song.gameSongId}
+                      </a>
+                    </td>
+                    <td class="song-cell">
+                      <a class="cell-link song-title" href={songPath(song.gameSongId)} title={song.title}>
                         {song.title}
                       </a>
                       <div class="song-artist" title={song.artist ?? undefined}>
                         {song.artist ?? '—'}
                       </div>
                     </td>
-                    <td class="level">{song.level ?? '—'}</td>
+                    <td class="song-cell level">
+                      <a class="cell-link" href={songPath(song.gameSongId)} tabindex={-1} aria-hidden="true">
+                        {song.level ?? '—'}
+                      </a>
+                    </td>
                     {PLAYER_COUNTS.map((count) => (
                       <BestCell song={song} count={count} best={song.bestScores[String(count) as keyof BestScores]} />
                     ))}

@@ -138,10 +138,8 @@ input[type=search]:focus-visible, select:focus-visible {
 }
 /* フルコンボの王冠 */
 .fc { display: inline-flex; flex: none; vertical-align: -0.125em; color: hsl(var(--gold)); }
-.dot { display: inline-block; flex: none; width: .625em; height: .625em; margin-top: .45em; border-radius: 50%; }
-.dot-R { background: #e5484d; } .dot-B { background: #3e7bfa; } .dot-Y { background: #f0b400; } .dot-G { background: #30a46c; }
 .participants { margin: 0; padding: 0; list-style: none; }
-.participants li { display: flex; gap: 8px; min-width: 0; overflow-wrap: break-word; word-break: normal; }
+.participants li { min-width: 0; overflow-wrap: anywhere; }
 .pagination { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px; margin: 24px 0 0; }
 .back-link { display: inline-block; margin-bottom: 12px; font-size: .875rem; text-decoration: none; }
 
@@ -168,7 +166,12 @@ table.songs { width: 100%; min-width: 960px; border-collapse: collapse; table-la
   color: hsl(var(--muted-foreground)); white-space: nowrap;
 }
 .songs td { padding: 10px 12px; border-top: 1px solid hsl(var(--border-subtle)); vertical-align: top; }
-.songs tbody tr:hover { background: hsl(var(--primary) / .04); }
+/* No.・曲名・Lv.の3列はセル全体が曲別ランキングへのリンク */
+.songs .song-cell { position: relative; }
+.cell-link { color: inherit; text-decoration: none; }
+.cell-link::after { content: ""; position: absolute; inset: 0; }
+.songs tr:has(.song-cell:hover) .song-cell { background: hsl(var(--primary) / .07); }
+.songs tr:has(.song-cell:hover) .song-title { color: hsl(var(--primary)); }
 .songs .no { font-weight: 600; color: hsl(var(--muted-foreground)); white-space: nowrap; }
 .songs .level { font-weight: 600; white-space: nowrap; }
 .sort-link { display: inline-flex; align-items: center; color: inherit; text-decoration: none; }
@@ -178,12 +181,11 @@ table.songs { width: 100%; min-width: 960px; border-collapse: collapse; table-la
   display: block; overflow: hidden; font-weight: 600; color: hsl(var(--foreground));
   text-decoration: none; text-overflow: ellipsis; white-space: nowrap;
 }
-.song-title:hover { color: hsl(var(--primary)); }
 .song-artist { overflow: hidden; margin-top: 2px; font-size: .8125rem; color: hsl(var(--secondary-foreground)); text-overflow: ellipsis; white-space: nowrap; }
 /* 1位はプレイヤー名を主に、スコアとFCを下に添える */
 .best-link { display: block; min-width: 0; color: hsl(var(--foreground)); text-decoration: none; }
 .best-link .participants { font-weight: 700; }
-.best-link .participants li > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.best-link .participants li { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .best-tied { display: block; }
 .best-score { display: inline-flex; align-items: center; gap: 4px; margin-top: 2px; font-size: .8125rem; color: hsl(var(--muted-foreground)); }
 .best-link:hover .participants, .best-link:hover .best-score { color: hsl(var(--primary)); }
@@ -217,7 +219,6 @@ table.ranking { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .ranking .score { width: 12rem; font-size: 1.5rem; font-weight: 700; text-align: right; white-space: nowrap; }
 .ranking .score .fc { margin-right: 6px; font-size: 1.125rem; }
 .ranking th.rank, .ranking th.score { font-size: .75rem; font-weight: 600; }
-.ranking .participants li > span:last-child { min-width: 0; overflow-wrap: anywhere; }
 @media (max-width: 639px) {
   .ranking th, .ranking td { padding-left: 10px; padding-right: 10px; }
   .ranking td.rank { font-size: 1.0625rem; } .ranking .rank { width: 3.5rem; }
