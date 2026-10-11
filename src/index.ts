@@ -1,11 +1,13 @@
 import { Hono } from 'hono'
 import { ApiError, errorResponse } from './lib/http'
 import { adminSongs } from './routes/admin-songs'
+import { installations } from './routes/installations'
 
 const app = new Hono<{ Bindings: Env }>()
 
 app.get('/api/v1/health', (c) => c.json({ status: 'ok' }))
 app.route('/api/v1/admin/songs', adminSongs)
+app.route('/api/v1/installations', installations)
 
 app.notFound((c) => errorResponse(c, 404, 'NOT_FOUND', '見つかりません'))
 
