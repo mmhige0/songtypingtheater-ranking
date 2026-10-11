@@ -1,0 +1,175 @@
+import { env } from 'cloudflare:workers'
+import { beforeEach, describe, expect, it } from 'vitest'
+import app from '../src/index'
+import { resetDb } from './helpers'
+import { at, insertPlay, insertPlayers, insertSong } from './view-helpers'
+
+// 架空のID・名前のみ使用
+const IDS = Array.from({ length: 12 }, (_, i) => `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`)
+
+const get = (path: string, testEnv: Env = env) => app.request(path, {}, testEnv)
+
+const html = async (path: string, status = 200) => {
+  const res = await get(path)
+  expect(res.status, path).toBe(status)
+  expect(res.headers.get('Content-Type')).toContain('text/html')
+  const text = await res.text()
+  expect(text.startsWith('<!DOCTYPE html>')).toBe(true)
+  return text
+}
+
+let song: number
+
+beforeEach(async () => {
+  await resetDb()
+  song = await insertSong('001', '架空の曲名', { artist: '架空のアーティスト', level: '5+', levelSortValue: 16 })
+  await insertPlayers(...IDS)
+})
+
+describe('song list page', () => {
+  it('shows songs with best scores and the solo top player', async () => {
+    await insertPlay({
+      playId: 'p1',
+      songRefId: song,
+      score: 123456,
+      participants: [{ id: IDS[0]!, name: 'ソロの人', color: 'R' }],
+    })
+    const text = await html('/')
+    expect(text).toContain('架空の曲名')
+    expect(text).toContain('123,456')
+    expect(text).toContain('ソロの人')
+    expect(text).toContain('href="/songs/001?players=1"')
+  })
+
+  it('shows a message when nothing matches', async () => {
+    expect(await html('/?q=存在しない曲')).toContain('条件に一致する曲がありません')
+  })
+})
+
+describe('song ranking page', () => {
+  it('shows all four player counts on one page with the selected tab', async () => {
+    await insertPlay({
+      playId: 'p1',
+      songRefId: song,
+      score: 500,
+      participants: [
+        { id: IDS[0]!, name: 'ふたりめ', color: 'B' },
+        { id: IDS[1]!, name: 'ひとりめ', color: 'R' },
+      ],
+      isFullCombo: true,
+    })
+    const text = await html('/songs/001?players=2')
+    for (const count of [1, 2, 3, 4]) expect(text).toContain(`class="box panel panel-${count}"`)
+    expect(text).toMatch(/id="tab-2"[^>]*checked/)
+    expect(text).not.toMatch(/id="tab-1"[^>]*checked/)
+    expect(text.indexOf('ひとりめ')).toBeLessThan(text.indexOf('ふたりめ'))
+    expect(text).toContain('>FC<')
+    expect(text).toContain('受付 2026/10/10 22:00')
+    expect(text).toContain('記録はまだありません')
+  })
+
+  it('escapes player names', async () => {
+    await insertPlay({
+      playId: 'p1',
+      songRefId: song,
+      score: 1,
+      participants: [{ id: IDS[0]!, name: '<script>alert("x")</script>', color: 'R' }],
+    })
+    const text = await html('/songs/001')
+    expect(text).not.toContain('<script>alert')
+    expect(text).toContain('&lt;script&gt;')
+  })
+
+  it('labels legacy records instead of showing the import time as received time', async () => {
+    await insertPlay({
+      playId: 'legacy-1',
+      songRefId: song,
+      score: 1,
+      participants: [{ id: IDS[0]!, name: '旧記録', color: 'R' }],
+      isFullCombo: null,
+      hostPlayerId: null,
+    })
+    expect(await html('/songs/001')).toContain('移行記録')
+  })
+
+  it('shows the top 10 per player count and links to the full ranking', async () => {
+    for (let i = 0; i < 12; i++) {
+      await insertPlay({
+        playId: `p${i}`,
+        songRefId: song,
+        score: 1000 - i,
+        participants: [{ id: IDS[i]!, name: `Player${String(i).padStart(2, '0')}`, color: 'R' }],
+        receivedAt: at(i),
+      })
+    }
+    const text = await html('/songs/001?fc=0&name=player')
+    expect(text).toContain('Player09')
+    expect(text).not.toContain('Player10')
+    expect(text).toContain('href="/songs/001/players/1?name=player"')
+    expect(text).toContain('すべて見る（12件）')
+
+    const full = await html('/songs/001/players/1')
+    expect(full).toContain('Player11')
+    // 1ページに収まる場合はページ送りを出さない
+    expect(full).not.toContain('ページ送り')
+  })
+
+  it('pages the per-player-count ranking by 50', async () => {
+    const batch = []
+    for (let i = 0; i < 51; i++) {
+      batch.push(
+        env.DB.prepare('INSERT INTO player (player_id, created_at) VALUES (?, ?)').bind(`legacy-p${i}`, at(0)),
+        env.DB.prepare(
+          `INSERT INTO play (play_id, song_ref_id, score, received_at, player_count, team_key) VALUES (?, ?, ?, ?, 1, ?)`,
+        ).bind(`legacy-${i}`, song, 1000 - i, at(0), JSON.stringify([`legacy-p${i}`])),
+        env.DB.prepare(
+          `INSERT INTO play_participant (play_id, player_id, name_at_play, color_at_play) VALUES (?, ?, ?, 'R')`,
+        ).bind(`legacy-${i}`, `legacy-p${i}`, `Legacy${i}`),
+      )
+    }
+    await env.DB.batch(batch)
+    const second = await html('/songs/001/players/1?page=2')
+    expect(second).toContain('Legacy50')
+    expect(second).not.toContain('Legacy49<')
+    expect(second).toContain('2 / 2 ページ（51件）')
+    expect(second).toContain('href="/songs/001/players/1"')
+  })
+})
+
+describe('page errors', () => {
+  it('returns HTML for unknown songs and paths, JSON for unknown API paths', async () => {
+    expect(await html('/songs/999', 404)).toContain('曲が見つかりません')
+    expect(await html('/songs/001/players/5', 400)).toContain('表示できません')
+    await html('/no-such-page', 404)
+    const res = await get('/api/v1/no-such-api')
+    expect(res.status).toBe(404)
+    expect(res.headers.get('Content-Type')).toContain('application/json')
+  })
+
+  it('returns HTML for invalid queries', async () => {
+    expect(await html('/?sort=title', 400)).toContain('sortはidまたはlevelにしてください')
+  })
+})
+
+describe('view rate limit', () => {
+  it('limits pages and view APIs by CF-Connecting-IP', async () => {
+    const keys: string[] = []
+    const limiter: RateLimit = {
+      limit: async ({ key }) => {
+        keys.push(key)
+        return { success: false }
+      },
+    }
+    const testEnv = { ...env, VIEW_IP_LIMITER: limiter }
+    const headers = { 'CF-Connecting-IP': '198.51.100.1' }
+
+    const page = await app.request('/', { headers }, testEnv)
+    expect(page.status).toBe(429)
+    expect(page.headers.get('Content-Type')).toContain('text/html')
+    expect(page.headers.get('Retry-After')).toBe('60')
+    const api = await app.request('/api/v1/songs', { headers }, testEnv)
+    expect(api.status).toBe(429)
+    expect(api.headers.get('Retry-After')).toBe('60')
+    expect(keys).toEqual(['198.51.100.1', '198.51.100.1'])
+  })
+})

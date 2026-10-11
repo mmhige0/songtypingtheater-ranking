@@ -66,12 +66,12 @@ D1_ERROR: UNIQUE constraint failed: play.play_id: SQLITE_CONSTRAINT (extended: S
 | POST /api/v1/plays | 認証済みtokenのplayerId | 60秒20リクエスト |
 | POST /api/v1/installations | 送信元IP | 60秒5リクエスト |
 | PUT /api/v1/admin/songs/{gameSongId} | なし | 管理用キーで認証するため制限しない（初期登録の連続送信を妨げない） |
-| 閲覧API・画面 | 送信元IP | 送信APIと別枠。値は実測後に決める |
+| GET /api/v1/songs以下・閲覧画面 | 送信元IP | 60秒120リクエスト（送信APIと別枠。実測後に調整） |
 
 - 期間は10秒または60秒しか選べない前提で、元の案（10分100、1時間20）に近い値にした。値は運用設定として実測後に調整する。
 - Workers Rate Limitingはデータセンター単位・結果整合の近似的な制限であり、全体で厳密な回数にはならない（公式に「accurate accounting systemとして使わない」と明記）。
 - 拒否時は429 RATE_LIMITEDを返す。`limit()`は成否しか返さず残り時間を取得できないため、Retry-Afterには設定した期間（60）を返す。
-- 設定は`wrangler.jsonc`の`ratelimits`（`PLAYS_IP_LIMITER`・`PLAYS_PLAYER_LIMITER`・`INSTALLATIONS_IP_LIMITER`）、判定は`src/lib/rate-limit.ts`。plays のIP単位は認証前（拒否されるリクエストも数える）、プレイヤー単位は認証後に判定する。`CF-Connecting-IP`がない場合（ローカル実行）は全体を`unknown`として数える。
+- 設定は`wrangler.jsonc`の`ratelimits`（`PLAYS_IP_LIMITER`・`PLAYS_PLAYER_LIMITER`・`INSTALLATIONS_IP_LIMITER`・`VIEW_IP_LIMITER`）、判定は`src/lib/rate-limit.ts`。plays のIP単位は認証前（拒否されるリクエストも数える）、プレイヤー単位は認証後に判定する。`CF-Connecting-IP`がない場合（ローカル実行）は全体を`unknown`として数える。
 - テストでは上限を緩めた設定で機能テストを行い、429の動作はテスト用のバインディングに差し替えて確認する。
 - 無料プランで利用できるかは公式ドキュメントに記載がないが、2026-10-11に本番で動作を確認した。制限はかかるが近似的で緩い（初回登録に不正な本文を40回連続送信し、429は28回目の1回だけ）。大量送信の抑止として現状のまま使い、利用状況をWorkersのログで見て、必要ならD1カウンターへ切り替える。
 - 利用できない場合は、D1にキー・時間窓ごとの件数を数えるテーブルを置く固定窓カウンターへ切り替える。1リクエスト1行の書き込みで、無料枠（1日10万行）に収まる。
@@ -129,6 +129,7 @@ API仕様は重複JSONキーの検出を求める。`JSON.parse`・`c.req.json()
 ```text
 src/
   routes/      # API・閲覧画面のルート
+  views/       # 閲覧画面（Hono JSX）
   db/          # Drizzleスキーマ・クエリ
   lib/         # 検証・teamKey生成・認証などの共通処理
 migrations/    # D1マイグレーションSQL

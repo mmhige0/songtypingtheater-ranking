@@ -2,7 +2,9 @@ import { Hono } from 'hono'
 import { ApiError, errorResponse } from './lib/http'
 import { adminSongs } from './routes/admin-songs'
 import { installations } from './routes/installations'
+import { pages, renderNotFound } from './routes/pages'
 import { playsRoute } from './routes/plays'
+import { songsRoute } from './routes/songs'
 
 const app = new Hono<{ Bindings: Env }>()
 
@@ -10,8 +12,12 @@ app.get('/api/v1/health', (c) => c.json({ status: 'ok' }))
 app.route('/api/v1/admin/songs', adminSongs)
 app.route('/api/v1/installations', installations)
 app.route('/api/v1/plays', playsRoute)
+app.route('/api/v1/songs', songsRoute)
+app.route('/', pages)
 
-app.notFound((c) => errorResponse(c, 404, 'NOT_FOUND', '見つかりません'))
+app.notFound((c) =>
+  c.req.path.startsWith('/api/') ? errorResponse(c, 404, 'NOT_FOUND', '見つかりません') : renderNotFound(c),
+)
 
 app.onError((error, c) => {
   if (error instanceof ApiError) return errorResponse(c, error.status, error.code, error.message, error.headers)
