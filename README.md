@@ -52,4 +52,16 @@ ADMIN_API_KEY=<管理用キー> npm run register-songs -- --base-url https://<Wo
 - 同じCSVを再実行しても結果は変わらない（変更のない曲はunchanged）。
 - HTTPSのURLだけを受け付ける（HTTPはlocalhostのみ）。CSVは`imports/`（Git管理外）に置く。
 
+## 公開前のテストデータ削除
+
+結合テストは本番環境で行う。ゲーム公開前に、テストで登録されたプレイヤー・成績を削除する。曲（song）は残す。
+
+```sh
+npx wrangler d1 execute DB --remote --command "DELETE FROM play_participant; DELETE FROM play; DELETE FROM legacy_identity_mapping; DELETE FROM player;"
+npx wrangler d1 execute DB --remote --command "SELECT (SELECT COUNT(*) FROM song) AS songs, (SELECT COUNT(*) FROM player) AS players, (SELECT COUNT(*) FROM play) AS plays"
+```
+
+- 外部キーのため、この順序で削除する。誤って削除した場合はD1 Time Travelで7日以内に戻せる。
+- 旧記録の移行より**前**に行う。移行後に実行すると移行した記録も消える（順序: テストデータ削除 → 旧記録の移行 → ゲーム公開）。
+
 秘密情報・実際のプレイヤー名や成績・移行用の対応表はGit、PR、Issue、AIの作業メモリ・作業メモやログに残さない。設計書とテストには架空データだけを使う。
