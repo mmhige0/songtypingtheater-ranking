@@ -1,7 +1,10 @@
 # 協力タイピングゲーム ランキングサイト
 
 2026-10-11時点。プロジェクト名: songtypingtheater-ranking。
-送信系API（曲登録・初回登録・成績送信）と送信回数制限を実装し、Cloudflareへデプロイ済み（`https://ranking.kayomodoki.com`）。ランキング閲覧API・画面は実装済みで未デプロイ。旧記録の移行インポーターは未実装。
+送信系API（曲登録・初回登録・成績送信）、送信回数制限、ランキング閲覧API・画面を実装し、Cloudflareへデプロイ済み。旧記録の移行インポーターは未実装。
+
+- URL: `https://ranking.kayomodoki.com`（APIの送信先とランキング画面）
+- 移行期間中は`https://songtypingtheater-ranking.songtypingtheater-ranking.workers.dev`も同じWorker・同じDBで受け付ける
 
 ## 文書
 
@@ -49,7 +52,7 @@ Node.js 22を使用。Cloudflare上の初期設定は[システム構成](docs/a
 CSVは1行目を`gameSongId,title,artist,level`とし、artist・levelは空欄ならnullとして登録する。levelは`5`・`5+`・`5-`の形式、または`-`（未定）・`?`（不明）。CSVは`imports/`（Git管理外）に置く。
 
 ```sh
-ADMIN_API_KEY=<管理用キー> npx tsx scripts/register-songs.ts --base-url https://<Workerのドメイン> imports/songs.csv
+ADMIN_API_KEY=<管理用キー> npx tsx scripts/register-songs.ts --base-url https://ranking.kayomodoki.com imports/songs.csv
 ```
 
 - 1行ずつ`PUT /api/v1/admin/songs/{gameSongId}`を送り、created・updated・unchanged・エラーを表示する。エラーが1件でもあれば終了コード1。
@@ -59,7 +62,7 @@ ADMIN_API_KEY=<管理用キー> npx tsx scripts/register-songs.ts --base-url htt
 ### 1曲だけ登録・修正する
 
 ```sh
-curl -X PUT "https://<Workerのドメイン>/api/v1/admin/songs/<曲番>" \
+curl -X PUT "https://ranking.kayomodoki.com/api/v1/admin/songs/<曲番>" \
   -H "Authorization: Bearer <管理用キー>" \
   -H "Content-Type: application/json" \
   -d '{"title":"曲名","artist":"アーティスト名","level":"5+"}'
