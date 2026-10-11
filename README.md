@@ -38,5 +38,18 @@ npm run check             # lint・型チェック・テスト
 ```
 
 Node.js 22を使用。Cloudflare上の初期設定は[システム構成](docs/architecture.md#cloudflare上の初期設定管理者が実施)を参照。
+ローカルの`npm run dev`で曲登録APIを使う場合は、`.dev.vars.example`を`.dev.vars`にコピーして`ADMIN_API_KEY`を設定する。
+
+## 曲の登録
+
+曲マスターは登録スクリプトで曲登録APIへ送る。CSVは1行目を`gameSongId,title,artist,level`とし、artist・levelは空欄ならnullとして登録する。
+
+```sh
+ADMIN_API_KEY=<管理用キー> npm run register-songs -- --base-url https://<Workerのドメイン> imports/songs.csv
+```
+
+- 1行ずつ`PUT /api/v1/admin/songs/{gameSongId}`を送り、created・updated・unchanged・エラーを表示する。エラーが1件でもあれば終了コード1。
+- 同じCSVを再実行しても結果は変わらない（変更のない曲はunchanged）。
+- HTTPSのURLだけを受け付ける（HTTPはlocalhostのみ）。CSVは`imports/`（Git管理外）に置く。
 
 秘密情報・実際のプレイヤー名や成績・移行用の対応表はGit、PR、Issue、AIの作業メモリ・作業メモやログに残さない。設計書とテストには架空データだけを使う。

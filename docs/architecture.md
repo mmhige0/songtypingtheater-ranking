@@ -35,7 +35,7 @@ D1はアプリから対話的にBEGIN〜COMMITを発行できず、`batch()`に�
 |---|---|
 | 成績登録 | 検証・曲の変換（gameSongId→Song.id）・参加者の登録確認を先に行い、Playと全PlayParticipantの挿入を1回の`batch()`で実行する。playIdの一意制約違反なら既存の記録のreceivedAtを読み直して200 already_registered（本文は比較しない） |
 | 初回登録 | tokenHash付きのPlayer行の挿入1文で実行する。一意制約違反なら保存済みのID・tokenHash・失効状態を読み直し、仕様どおり200・409・401を返す |
-| 曲登録 | `INSERT ... ON CONFLICT(gameSongId) DO UPDATE`の1文で登録・更新する。値が同じ場合は更新せず、created・updated・unchangedを判定できる形にする |
+| 曲登録 | gameSongIdで既存行を読み、なければINSERT（created）、あれば内容を比較して同じならunchanged、異なればUPDATE（updated）。created・updated・unchangedを区別するため1文のupsertにはしない。同時登録でINSERTが一意制約違反になったら既存行を読み直して比較・更新に切り替える |
 | 移行のID対応修正 | 参加者・teamKey・playerCountの更新を1回の`batch()`で実行する |
 
 `batch()`の前に読んだ値が、実行時までに他のリクエストで変わる可能性がある処理（例: 検証後の失効）は、一意制約・条件付き更新で守れる範囲を実装時に確認する。
