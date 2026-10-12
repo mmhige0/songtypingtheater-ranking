@@ -36,28 +36,22 @@ const NoScriptSubmit = () => (
   </noscript>
 )
 
-// プレイヤー名検索とFC絞り込みのフォーム。曲別ランキングではタブのラジオボタンもform属性でこのフォームに含める
+// プレイヤー名検索のフォーム。曲別ランキングではタブのラジオボタンもform属性でこのフォームに含める
 const RankingFilters = ({
   id,
   action,
   name,
-  fullComboOnly,
   clearHref,
   resultsId,
 }: {
   id?: string
   action: string
   name: string | null
-  fullComboOnly: boolean
   clearHref: string
   resultsId: string
 }) => (
   <form id={id} class="box filters" method="get" action={action} role="search" data-live={resultsId}>
     <SearchField name="name" value={name} placeholder="プレイヤー名で検索" clearHref={clearHref} />
-    <label class="chip">
-      <input type="checkbox" name="fc" value="1" checked={fullComboOnly} />
-      フルコンボのみ
-    </label>
     <NoScriptSubmit />
   </form>
 )
@@ -233,14 +227,13 @@ export type SongRankingProps = {
   song: SongSummary
   rankings: Map<PlayerCount, RankingPage>
   selected: PlayerCount
-  fullComboOnly: boolean
   name: string | null
   limit: number
 }
 
 const emptyMessage = (filtered: boolean) => (filtered ? '条件に一致する記録はありません' : '記録はまだありません')
 
-export const SongRankingPage = ({ song, rankings, selected, fullComboOnly, name, limit }: SongRankingProps) => (
+export const SongRankingPage = ({ song, rankings, selected, name, limit }: SongRankingProps) => (
   <Layout title={song.title}>
     <h1 class="page-title">{song.title}</h1>
     <SongMeta song={song} />
@@ -248,8 +241,7 @@ export const SongRankingPage = ({ song, rankings, selected, fullComboOnly, name,
       id="filters"
       action={songPath(song.gameSongId)}
       name={name}
-      fullComboOnly={fullComboOnly}
-      clearHref={`${songPath(song.gameSongId)}${toQuery({ players: selected === 1 ? null : selected, fc: fullComboOnly })}`}
+      clearHref={`${songPath(song.gameSongId)}${toQuery({ players: selected === 1 ? null : selected })}`}
       resultsId="ranking-results"
     />
 
@@ -279,11 +271,11 @@ export const SongRankingPage = ({ song, rankings, selected, fullComboOnly, name,
           return (
             <section class={`box panel panel-${count}`} aria-label={`${count}人ランキング`}>
               <h2 class="panel-title">{count}人</h2>
-              <RankingList entries={ranking.entries} emptyMessage={emptyMessage(fullComboOnly || name !== null)} />
+              <RankingList entries={ranking.entries} emptyMessage={emptyMessage(name !== null)} />
               {ranking.total > limit && (
                 <a
                   class="panel-more"
-                  href={`${songPath(song.gameSongId)}/players/${count}${toQuery({ fc: fullComboOnly, name })}`}
+                  href={`${songPath(song.gameSongId)}/players/${count}${toQuery({ name })}`}
                 >
                   すべて見る（{ranking.total}件）
                 </a>
@@ -303,17 +295,16 @@ export type PlayerRankingProps = {
   song: SongSummary
   players: PlayerCount
   ranking: RankingPage
-  fullComboOnly: boolean
   name: string | null
   page: number
   limit: number
 }
 
-export const PlayerRankingPage = ({ song, players, ranking, fullComboOnly, name, page, limit }: PlayerRankingProps) => {
+export const PlayerRankingPage = ({ song, players, ranking, name, page, limit }: PlayerRankingProps) => {
   const path = `${songPath(song.gameSongId)}/players/${players}`
   return (
     <Layout title={`${song.title}（${players}人）`}>
-      <a class="back-link" href={`${songPath(song.gameSongId)}${toQuery({ players, fc: fullComboOnly, name })}`}>
+      <a class="back-link" href={`${songPath(song.gameSongId)}${toQuery({ players, name })}`}>
         ← 1〜4人のランキングへ
       </a>
       <h1 class="page-title">
@@ -323,19 +314,18 @@ export const PlayerRankingPage = ({ song, players, ranking, fullComboOnly, name,
       <RankingFilters
         action={path}
         name={name}
-        fullComboOnly={fullComboOnly}
-        clearHref={`${path}${toQuery({ fc: fullComboOnly })}`}
+        clearHref={path}
         resultsId="ranking-results"
       />
       <div id="ranking-results">
         <section class="box">
-          <RankingTable entries={ranking.entries} emptyMessage={emptyMessage(fullComboOnly || name !== null)} />
+          <RankingTable entries={ranking.entries} emptyMessage={emptyMessage(name !== null)} />
         </section>
         <Pagination
           page={page}
           limit={limit}
           total={ranking.total}
-          href={(p) => `${path}${toQuery({ fc: fullComboOnly, name, page: pageParam(p) })}`}
+          href={(p) => `${path}${toQuery({ name, page: pageParam(p) })}`}
         />
       </div>
       <LiveSearchScript />

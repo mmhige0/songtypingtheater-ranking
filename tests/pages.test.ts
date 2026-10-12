@@ -126,6 +126,23 @@ describe('song ranking page', () => {
     expect(text).toContain('記録はまだありません')
   })
 
+  it('ignores retired full-combo filters on page URLs and keeps all records visible', async () => {
+    await insertPlay({
+      playId: 'non-fc',
+      songRefId: song,
+      score: 500,
+      participants: [{ id: IDS[0]!, name: '通常の記録', color: 'R' }],
+      isFullCombo: false,
+    })
+    for (const path of ['/songs/001?fc=1', '/songs/001/players/1?fc=1']) {
+      const text = await html(path)
+      expect(text).toContain('通常の記録')
+      expect(text).not.toContain('フルコンボのみ')
+      expect(text).not.toContain('name="fc"')
+      expect(text).not.toMatch(/href="[^"]*[?&]fc=/)
+    }
+  })
+
   it('escapes player names', async () => {
     await insertPlay({
       playId: 'p1',

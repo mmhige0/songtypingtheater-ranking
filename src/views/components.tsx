@@ -13,7 +13,7 @@ export const toQuery = (params: Record<string, string | number | boolean | null 
   return text ? `?${text}` : ''
 }
 
-// フルコンボの王冠（lucideのCrown、ISCライセンス）
+// フルコンボの星（単色SVGでテーマに追従）
 export const FullComboMark = () => (
   <span class="fc" title="フルコンボ" role="img" aria-label="フルコンボ">
     <svg
@@ -28,13 +28,12 @@ export const FullComboMark = () => (
       stroke-linejoin="round"
       aria-hidden="true"
     >
-      <path d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.734H5.81a1 1 0 0 1-.957-.734L2.02 6.02a.5.5 0 0 1 .798-.519l4.276 3.664a1 1 0 0 0 1.516-.294z" />
-      <path d="M5 21h14" />
+      <path d="m12 3 2.78 5.63 6.22.9-4.5 4.39 1.06 6.2L12 17.19l-5.56 2.93 1.06-6.2L3 9.53l6.22-.9Z" />
     </svg>
   </span>
 )
 
-// PCでは一人ずつ枠で区切る（色は表示しない。並びは色のR→B→Y→G順）。長い名前は各枠内で省略する
+// PCでは一人ずつ2列に並べる（色は表示しない。並びは色のR→B→Y→G順）。長い名前は各列内で省略する
 export const Participants = ({ participants }: { participants: Participant[] }) => (
   <ul class="participants" data-count={participants.length}>
     {participants.map((p) => (
