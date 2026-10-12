@@ -184,7 +184,7 @@ export const SongListPage = ({ songs, q, sort, dir, page, limit, total }: SongLi
                         {song.title}
                       </a>
                       <div class="song-artist" title={song.artist ?? undefined}>
-                        {song.artist ?? '—'}
+                        {song.artist}
                       </div>
                     </td>
                     <td class="song-cell level">

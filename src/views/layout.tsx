@@ -191,7 +191,7 @@ table.songs { width: 100%; min-width: 1080px; border-collapse: collapse; table-l
   display: block; overflow: hidden; font-weight: 600; color: hsl(var(--foreground));
   text-decoration: none; text-overflow: ellipsis; white-space: pre;
 }
-.song-artist { overflow: hidden; margin-top: 2px; font-size: .8125rem; color: hsl(var(--secondary-foreground)); text-overflow: ellipsis; white-space: nowrap; }
+.song-artist { overflow: hidden; min-height: 1lh; margin-top: 2px; font-size: .8125rem; color: hsl(var(--secondary-foreground)); text-overflow: ellipsis; white-space: pre; }
 /* 1位はプレイヤー名を主に、スコアとFCを下に添える */
 /* 人数のセルは全体がその人数のランキングへのリンク。押せるのはそのセルだけなので、ハイライトもセル単位 */
 .songs .best { position: relative; }
