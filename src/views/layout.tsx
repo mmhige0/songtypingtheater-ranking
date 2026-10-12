@@ -183,6 +183,7 @@ table.songs { width: 100%; min-width: 1080px; border-collapse: collapse; table-l
 .songs tr:has(.song-cell:hover) .song-title { color: hsl(var(--primary)); }
 .songs .no { font-weight: 600; color: hsl(var(--muted-foreground)); white-space: nowrap; }
 .songs .level { font-weight: 600; white-space: nowrap; }
+.songs .no, .songs .level, .songs th:first-child, .songs th:nth-child(3) { text-align: right; }
 .sort-link { display: inline-flex; align-items: center; color: inherit; text-decoration: none; }
 .sort-link:hover, th[aria-sort] .sort-link { color: hsl(var(--primary)); }
 .sort-arrow { display: inline-block; width: 1em; text-align: center; }
@@ -199,8 +200,7 @@ table.songs { width: 100%; min-width: 1080px; border-collapse: collapse; table-l
 .best-link { display: block; min-width: 0; color: hsl(var(--foreground)); }
 .best-empty { color: hsl(var(--muted-foreground)); }
 .best-link .participants { font-weight: 700; }
-.best-tied { display: block; }
-.best-score { display: inline-flex; align-items: center; gap: 4px; margin-top: 2px; font-size: 1rem; font-weight: 600; }
+.best-score { display: flex; justify-content: flex-end; align-items: center; gap: 4px; margin-top: 2px; font-size: 1rem; font-weight: 600; }
 .best-link:hover .participants, .best-link:hover .best-score { color: hsl(var(--primary)); }
 /* JSが有効なら無限スクロール、無効なら前へ・次へのリンク */
 .load-more { display: none; }
@@ -244,7 +244,7 @@ table.ranking { width: 100%; border-collapse: collapse; table-layout: fixed; }
   color: hsl(var(--muted-foreground));
 }
 .ranking td { padding: 14px 16px; border-top: 1px solid hsl(var(--border-subtle)); vertical-align: middle; }
-.ranking .rank { width: 5rem; font-size: 1.25rem; font-weight: 700; white-space: nowrap; }
+.ranking .rank { text-align: right; width: 5rem; font-size: 1.25rem; font-weight: 700; white-space: nowrap; }
 .ranking .rank-1 { color: hsl(var(--primary)); }
 .ranking .participants { font-size: 1.125rem; font-weight: 600; line-height: 1.4; }
 .ranking .score { width: 12rem; font-size: 1.5rem; font-weight: 700; text-align: right; white-space: nowrap; }
@@ -276,8 +276,6 @@ table.ranking { width: 100%; border-collapse: collapse; table-layout: fixed; }
   .songs td { vertical-align: top; }
   .best-link { display: flex; flex-direction: column; align-items: stretch; }
   .best-score { margin-top: 6px; }
-  /* 同点の補足でスコア位置が変わらないよう、補足はスコアの後に置く */
-  .best-tied { order: 1; margin-top: 2px; }
 }
 
 `

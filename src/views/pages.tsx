@@ -109,7 +109,7 @@ const SortHeader = ({
   )
 }
 
-// 人数ごとの1位。名前を主に、スコアとFCを添える。同点の1位が他にもいれば人数（ソロ）・組数を出す。
+// 人数ごとの1位。名前を主に、スコアとFCを添える。同点の補足は表示しない。
 // セル全体（記録なしも含む）がその人数のランキングへのリンク
 const BestCell = ({ song, count, best }: { song: SongSummary; count: PlayerCount; best: BestScore | null }) => (
   <td class={best?.isFullCombo === true ? 'best full-combo' : 'best'}>
@@ -124,15 +124,9 @@ const BestCell = ({ song, count, best }: { song: SongSummary; count: PlayerCount
     ) : (
       <a class="cell-link best-link" href={`${songPath(song.gameSongId)}${toQuery({ players: count })}`}>
         <Participants participants={best.participants} />
-        {best.tiedOthers > 0 && (
-          <span class="best-tied small muted">
-            ほか{best.tiedOthers}
-            {count === 1 ? '名' : '組'}
-          </span>
-        )}
         <span class="best-score num">
-          {formatScore(best.score)}
           {best.isFullCombo === true && <FullComboMark />}
+          {formatScore(best.score)}
         </span>
       </a>
     )}
