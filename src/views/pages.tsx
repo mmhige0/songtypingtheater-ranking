@@ -68,7 +68,7 @@ export type SongListProps = {
   total: number
 }
 
-// 既定値（No.の昇順・1ページ目）はクエリに付けない
+// 既定値（No.の降順・1ページ目）はクエリに付けない
 const songListPath = ({
   q = null,
   sort,
@@ -79,7 +79,7 @@ const songListPath = ({
   sort: SongSort
   dir: SortDir
   page?: number
-}) => `/${toQuery({ q, sort: sort === 'id' ? null : sort, dir: dir === 'asc' ? null : dir, page: pageParam(page) })}`
+}) => `/${toQuery({ q, sort: sort === 'id' ? null : sort, dir: dir === 'desc' ? null : dir, page: pageParam(page) })}`
 
 // 並べ替えの列見出し。選択中の列をもう一度押すと昇順・降順を切り替える
 const SortHeader = ({
@@ -96,7 +96,7 @@ const SortHeader = ({
   dir: SortDir
 }) => {
   const active = sort === value
-  const nextDir = active && dir === 'asc' ? 'desc' : 'asc'
+  const nextDir = active && dir === 'desc' ? 'asc' : 'desc'
   return (
     <th aria-sort={active ? (dir === 'asc' ? 'ascending' : 'descending') : undefined}>
       <a class="sort-link" href={songListPath({ q, sort: value, dir: nextDir })}>
@@ -139,7 +139,7 @@ export const SongListPage = ({ songs, q, sort, dir, page, limit, total }: SongLi
     <form id="song-search" class="box filters" method="get" action="/" role="search" data-live="song-results">
       <span id="sort-state" data-sync>
         {sort !== 'id' && <input type="hidden" name="sort" value={sort} />}
-        {dir !== 'asc' && <input type="hidden" name="dir" value={dir} />}
+        {dir !== 'desc' && <input type="hidden" name="dir" value={dir} />}
       </span>
       <SearchField name="q" value={q} placeholder="曲番・曲名・アーティスト名で検索" clearHref={songListPath({ sort, dir })} />
     </form>
@@ -184,7 +184,7 @@ export const SongListPage = ({ songs, q, sort, dir, page, limit, total }: SongLi
                         {song.title}
                       </a>
                       <div class="song-artist" title={song.artist ?? undefined}>
-                        {song.artist ?? '—'}
+                        {song.artist}
                       </div>
                     </td>
                     <td class="song-cell level">
