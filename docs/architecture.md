@@ -14,7 +14,7 @@ Cloudflareの無料プランで構築する。他構成との比較は行わず�
 | DB | Cloudflare D1（SQLite系） |
 | ORM・マイグレーション | Drizzle ORM。drizzle-kitで生成したSQLを`wrangler d1 migrations`で適用 |
 | 送信回数制限 | Workers Rate Limiting（バインディング）。使えない場合はD1の固定窓カウンター |
-| バックアップ | D1 Time Travel（7日）＋日次の暗号化SQLエクスポート（90日） |
+| バックアップ | D1 Time Travel（7日）＋非公開専用リポジトリの日次SQLエクスポート（90日） |
 | 言語・テスト | TypeScript（strict）、Vitest＋`@cloudflare/vitest-plugin`（旧`@cloudflare/vitest-pool-workers`） |
 | 設定・型 | `wrangler.jsonc`。Workerの型は`wrangler types`で生成（`worker-configuration.d.ts`はコミットせず、型チェック時に生成） |
 | ドメイン | `ranking.kayomodoki.com`（Workersのカスタムドメイン）。移行期間中は`songtypingtheater-ranking.songtypingtheater-ranking.workers.dev`も受け付ける（`workers_dev: true`）。ゲームの送信先が切り替わり古いURLへの送信がなくなったら`workers_dev: false`で閉じる |
@@ -83,12 +83,12 @@ API仕様は重複JSONキーの検出を求める。`JSON.parse`・`c.req.json()
 
 ## バックアップ
 
-- D1 Time Travelによる直近7日分の復旧を維持し、追加でGitHub Actionsが毎日04:23 JSTに現時点のDB全体をSQLエクスポートする。
-- SQLを一時SQLiteへ復元し、主要テーブル・整合性・外部キーを検査した後、gzip＋AES-256-GCMで暗号化してActions artifactに90日間保存する。暗号化キーはGitHub Secretに置き、別途管理者が安全な場所へ保管する。
-- 平文SQL・実データ・暗号化キーはGit・artifact・ログへ残さない。公開artifactへ置くのは認証付き暗号化を済ませたファイルだけ。鍵が漏れれば公開された暗号文を復号できるため、鍵の管理は必須。
-- R2は使わず、支払い方法登録は不要。手動実行も可能。移行や大きな変更の前にも取得する。
+- D1 Time Travelの直近7日分の復旧を維持する。追加で非公開の専用リポジトリのGitHub Actionsが毎日04:23 JSTにDB全体をSQLエクスポートし、復元検証・gzip圧縮後にartifactへ90日保存する。暗号化キーは不要。
+- 公開側にはバックアップ用のコードと配置手順だけを置く。実データはGitや公開artifact、ログへ置かない。専用リポジトリは非公開のまま運用し、共同管理者だけにアクセスを与える。
+- 公開リポジトリでは実行しない。workflowの条件に加えて実行直前にGitHub APIで非公開設定を確認する。ただし保存後に公開へ変更すると過去のartifactも漏えいし得るため、非公開設定を維持する。
+- R2は使わない。非公開Actionsの無料枠（実行時間・保存容量）に収まるか、実際の圧縮サイズで確認する。
 - エクスポート中は他のDBリクエストが待たされるため、アクセスの少ない時間帯に行う。
-- 設定・運用上の制限・復元手順は[バックアップ運用](backups.md)を参照。開始前の状態を後から取得する仕組みではなく、取得開始後に7日超の世代が蓄積する。
+- 設定・共同管理・復元手順は[バックアップ運用](backups.md)を参照。専用リポジトリ作成と初回設定完了までは稼働しない。取得開始前の7日超の状態を遡って取得するものではない。
 
 ## CI・デプロイ
 

@@ -1,0 +1,11 @@
+{
+  "name": "ranking-backup",
+  "compatibility_date": "2026-09-01",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "songtypingtheater-ranking",
+      "database_id": "4a20ec6b-c885-42f8-a301-bab943e8d917"
+    }
+  ]
+}

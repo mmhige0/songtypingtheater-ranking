@@ -1,0 +1,12 @@
+{
+  "name": "songtypingtheater-ranking-backups",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "backup": "node scripts/backup.mjs"
+  },
+  "devDependencies": {
+    "wrangler": "4.149.0"
+  }
+}

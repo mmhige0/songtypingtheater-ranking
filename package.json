@@ -15,9 +15,7 @@
     "test": "vitest run",
     "check": "npm run lint && npm run typecheck && npm run test",
     "register-songs": "tsx scripts/register-songs.ts",
-    "migrate-legacy-scores": "tsx scripts/migrate-legacy-scores.ts",
-    "backup": "node --import tsx scripts/backup/run.ts",
-    "test:backup": "node --import tsx --test scripts/backup/crypto.check.ts"
+    "migrate-legacy-scores": "tsx scripts/migrate-legacy-scores.ts"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.4",
