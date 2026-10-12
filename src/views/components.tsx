@@ -34,11 +34,13 @@ export const FullComboMark = () => (
   </span>
 )
 
-// 参加者の名前を1行で（色は表示しない。並びは色のR→B→Y→G順）。はみ出す分は省略し、全員の名前はtitleで出す
+// PCでは一人ずつ枠で区切る（色は表示しない。並びは色のR→B→Y→G順）。長い名前は各枠内で省略する
 export const Participants = ({ participants }: { participants: Participant[] }) => (
-  <ul class="participants" title={participants.map((p) => p.name).join('・')}>
+  <ul class="participants" data-count={participants.length}>
     {participants.map((p) => (
-      <li>{p.name}</li>
+      <li title={p.name}>
+        <span class="participant-name">{p.name}</span>
+      </li>
     ))}
   </ul>
 )
@@ -50,7 +52,7 @@ export const RankingList = ({ entries, emptyMessage }: { entries: RankingEntry[]
   ) : (
     <ol class="ranking-list">
       {entries.map((entry) => (
-        <li class="entry">
+        <li class={entry.isFullCombo === true ? 'entry full-combo' : 'entry'}>
           <div class="entry-head">
             <span class={entry.rank === 1 ? 'entry-rank rank-1 num' : 'entry-rank num'}>{entry.rank}位</span>
             <span class="entry-score num">
@@ -79,7 +81,7 @@ export const RankingTable = ({ entries, emptyMessage }: { entries: RankingEntry[
       </thead>
       <tbody>
         {entries.map((entry) => (
-          <tr>
+          <tr class={entry.isFullCombo === true ? 'full-combo' : undefined}>
             <td class={entry.rank === 1 ? 'rank rank-1 num' : 'rank num'}>{entry.rank}位</td>
             <td>
               <Participants participants={entry.participants} />

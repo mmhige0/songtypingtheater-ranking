@@ -16,7 +16,7 @@ const LIGHT = `
   --destructive: 0 75% 55%; --success: 150 65% 38%;
   --border: 215 20% 88%; --border-subtle: 215 15% 92%;
   --field: 215 25% 98%; --field-border: 215 20% 88%; --ring: 215 80% 55%;
-  --header: 215 30% 97%; --gold: 42 95% 42%;
+  --header: 215 30% 97%; --gold: 42 95% 42%; --full-combo-bg: 45 100% 95%;
   --sun: block; --moon: none;
 `
 
@@ -29,7 +29,7 @@ const DARK = `
   --destructive: 0 65% 55%; --success: 150 55% 42%;
   --border: 220 18% 20%; --border-subtle: 220 15% 16%;
   --field: 220 14% 15%; --field-border: 0 0% 32%; --ring: 200 65% 50%;
-  --header: 220 15% 11%; --gold: 45 95% 58%;
+  --header: 220 15% 11%; --gold: 45 95% 58%; --full-combo-bg: 42 32% 17%;
   --sun: none; --moon: block;
 `
 
@@ -140,10 +140,12 @@ input[type=search]:focus-visible, select:focus-visible {
 }
 /* フルコンボの王冠 */
 .fc { display: inline-flex; flex: none; vertical-align: -0.125em; color: hsl(var(--gold)); }
-/* 参加者の名前は「・」でつないで1行に並べ、はみ出す分は「…」で省略する */
+/* 狭い画面では従来どおり名前を「・」でつなぐ。PCでは下記の名前枠を使う */
 .participants { overflow: hidden; margin: 0; padding: 0; list-style: none; text-overflow: ellipsis; white-space: nowrap; }
 .participants li { display: inline; }
 .participants li:not(:last-child)::after { content: "・"; }
+/* 達成が確認できた記録だけ背景を変える。不明・未達成の記録には適用しない */
+.full-combo { background: hsl(var(--full-combo-bg)); }
 .pagination { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px; margin: 24px 0 0; }
 .back-link { display: inline-block; margin-bottom: 12px; font-size: .875rem; text-decoration: none; }
 
@@ -192,6 +194,7 @@ table.songs { width: 100%; min-width: 1080px; border-collapse: collapse; table-l
 /* 人数のセルは全体がその人数のランキングへのリンク。押せるのはそのセルだけなので、ハイライトもセル単位 */
 .songs .best { position: relative; }
 .songs .best:hover { background: hsl(var(--primary) / .07); }
+.songs .best.full-combo:hover { background: hsl(var(--full-combo-bg)); }
 .best-link { display: block; min-width: 0; color: hsl(var(--foreground)); }
 .best-empty { color: hsl(var(--muted-foreground)); }
 .best-link .participants { font-weight: 700; }
@@ -252,6 +255,26 @@ table.ranking { width: 100%; border-collapse: collapse; table-layout: fixed; }
   .ranking .participants { font-size: 1rem; }
   .ranking td.score { font-size: 1.1875rem; } .ranking .score { width: 8.5rem; }
   .ranking .score .fc { margin-right: 4px; font-size: 1rem; }
+}
+
+/* PC: 参加者ごとの枠を最大2列で配置し、全員の枠を残して長い名前だけを省略する */
+@media (min-width: 1024px) {
+  .participants {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px;
+    overflow: visible; white-space: normal;
+  }
+  .participants[data-count="1"] { grid-template-columns: minmax(0, 1fr); }
+  .participants li {
+    display: block; min-width: 0; padding: 3px 6px; border: 1px solid hsl(var(--border));
+    border-radius: 6px; background: hsl(var(--card));
+  }
+  .participants li:not(:last-child)::after { content: none; }
+  .participant-name { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .entry-head { flex-wrap: wrap; }
+  .entry .participants, .best-link .participants { font-size: .875rem; }
+  .best-link .participants { font-weight: 600; }
+  .entry-score { font-size: clamp(1rem, 1.45vw, 1.375rem); }
+  .songs td { vertical-align: middle; }
 }
 `
 

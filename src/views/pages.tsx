@@ -118,7 +118,7 @@ const SortHeader = ({
 // 人数ごとの1位。名前を主に、スコアとFCを添える。同点の1位が他にもいれば人数（ソロ）・組数を出す。
 // セル全体（記録なしも含む）がその人数のランキングへのリンク
 const BestCell = ({ song, count, best }: { song: SongSummary; count: PlayerCount; best: BestScore | null }) => (
-  <td class="best">
+  <td class={best?.isFullCombo === true ? 'best full-combo' : 'best'}>
     {best === null ? (
       <a
         class="cell-link best-empty muted"
