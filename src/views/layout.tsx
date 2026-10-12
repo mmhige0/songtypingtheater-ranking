@@ -16,7 +16,7 @@ const LIGHT = `
   --destructive: 0 75% 55%; --success: 150 65% 38%;
   --border: 215 20% 88%; --border-subtle: 215 15% 92%;
   --field: 215 25% 98%; --field-border: 215 20% 88%; --ring: 215 80% 55%;
-  --header: 215 30% 97%; --gold: 42 95% 42%;
+  --header: 215 30% 97%; --gold: 42 95% 42%; --full-combo-bg: 210 75% 96%;
   --sun: block; --moon: none;
 `
 
@@ -29,7 +29,7 @@ const DARK = `
   --destructive: 0 65% 55%; --success: 150 55% 42%;
   --border: 220 18% 20%; --border-subtle: 220 15% 16%;
   --field: 220 14% 15%; --field-border: 0 0% 32%; --ring: 200 65% 50%;
-  --header: 220 15% 11%; --gold: 45 95% 58%;
+  --header: 220 15% 11%; --gold: 45 95% 58%; --full-combo-bg: 210 30% 18%;
   --sun: none; --moon: block;
 `
 
@@ -138,12 +138,14 @@ input[type=search]:focus-visible, select:focus-visible {
   padding: 48px 16px; border: 1px dashed hsl(var(--border)); border-radius: 16px; background: hsl(var(--card) / .8);
   color: hsl(var(--muted-foreground)); font-size: .875rem; text-align: center;
 }
-/* フルコンボの王冠 */
-.fc { display: inline-flex; flex: none; vertical-align: -0.125em; color: hsl(var(--gold)); }
-/* 参加者の名前は「・」でつないで1行に並べ、はみ出す分は「…」で省略する */
+/* フルコンボの星 */
+.fc { display: inline-flex; flex: none; vertical-align: -0.125em; color: hsl(var(--primary)); }
+/* 狭い画面では従来どおり名前を「・」でつなぐ。PCでは下記の2列配置を使う */
 .participants { overflow: hidden; margin: 0; padding: 0; list-style: none; text-overflow: ellipsis; white-space: nowrap; }
 .participants li { display: inline; }
 .participants li:not(:last-child)::after { content: "・"; }
+/* 達成が確認できた記録だけ背景を変える。不明・未達成の記録には適用しない */
+.full-combo { background: hsl(var(--full-combo-bg)); }
 .pagination { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px; margin: 24px 0 0; }
 .back-link { display: inline-block; margin-bottom: 12px; font-size: .875rem; text-decoration: none; }
 
@@ -164,9 +166,10 @@ input[type=search]:focus-visible, select:focus-visible {
 .result-count { margin: 0 0 8px; }
 .table-wrap { overflow-x: auto; }
 table.songs { width: 100%; min-width: 1080px; border-collapse: collapse; table-layout: fixed; font-size: .9375rem; }
-.songs .col-no { width: 4.5rem; } /* 人数が多いほど名前が長いので広くする（曲別ランキングの4列も同じ比率） */
-.songs .col-best-1 { width: 9.5rem; } .songs .col-best-2 { width: 11rem; }
-.songs .col-best-3 { width: 12.5rem; } .songs .col-best-4 { width: 14rem; } .songs .col-level { width: 4rem; }
+.songs .col-no { width: 4.5rem; }
+/* 名前を2列に収めるため、1〜4人の列を同じ幅にする。曲名には残りの幅を使う */
+.songs .col-best-1, .songs .col-best-2, .songs .col-best-3, .songs .col-best-4 { width: 17%; }
+.songs .col-level { width: 4rem; }
 .songs th {
   padding: 12px; font-size: .75rem; font-weight: 600; letter-spacing: .025em; text-align: left;
   color: hsl(var(--muted-foreground)); white-space: nowrap;
@@ -180,6 +183,7 @@ table.songs { width: 100%; min-width: 1080px; border-collapse: collapse; table-l
 .songs tr:has(.song-cell:hover) .song-title { color: hsl(var(--primary)); }
 .songs .no { font-weight: 600; color: hsl(var(--muted-foreground)); white-space: nowrap; }
 .songs .level { font-weight: 600; white-space: nowrap; }
+.songs .no, .songs .level, .songs th:first-child, .songs th:nth-child(3) { text-align: right; }
 .sort-link { display: inline-flex; align-items: center; color: inherit; text-decoration: none; }
 .sort-link:hover, th[aria-sort] .sort-link { color: hsl(var(--primary)); }
 .sort-arrow { display: inline-block; width: 1em; text-align: center; }
@@ -192,11 +196,11 @@ table.songs { width: 100%; min-width: 1080px; border-collapse: collapse; table-l
 /* 人数のセルは全体がその人数のランキングへのリンク。押せるのはそのセルだけなので、ハイライトもセル単位 */
 .songs .best { position: relative; }
 .songs .best:hover { background: hsl(var(--primary) / .07); }
+.songs .best.full-combo:hover { background: hsl(var(--full-combo-bg)); }
 .best-link { display: block; min-width: 0; color: hsl(var(--foreground)); }
 .best-empty { color: hsl(var(--muted-foreground)); }
 .best-link .participants { font-weight: 700; }
-.best-tied { display: block; }
-.best-score { display: inline-flex; align-items: center; gap: 4px; margin-top: 2px; font-size: 1rem; font-weight: 600; }
+.best-score { display: flex; justify-content: flex-end; align-items: center; gap: 4px; margin-top: 2px; font-size: 1rem; font-weight: 600; }
 .best-link:hover .participants, .best-link:hover .best-score { color: hsl(var(--primary)); }
 /* JSが有効なら無限スクロール、無効なら前へ・次へのリンク */
 .load-more { display: none; }
@@ -217,7 +221,7 @@ table.songs { width: 100%; min-width: 1080px; border-collapse: collapse; table-l
 .panel-title { display: none; padding: 16px 16px 4px; font-size: 1.125rem; }
 @media (min-width: 1024px) {
   .tabs { display: none; }
-  .panels { display: grid; grid-template-columns: minmax(0, 9.5fr) minmax(0, 11fr) minmax(0, 12.5fr) minmax(0, 14fr); gap: 20px; align-items: start; }
+  .panels { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; align-items: start; }
   .panel { display: block; }
   .panel-title { display: block; }
 }
@@ -240,7 +244,7 @@ table.ranking { width: 100%; border-collapse: collapse; table-layout: fixed; }
   color: hsl(var(--muted-foreground));
 }
 .ranking td { padding: 14px 16px; border-top: 1px solid hsl(var(--border-subtle)); vertical-align: middle; }
-.ranking .rank { width: 5rem; font-size: 1.25rem; font-weight: 700; white-space: nowrap; }
+.ranking .rank { text-align: right; width: 5rem; font-size: 1.25rem; font-weight: 700; white-space: nowrap; }
 .ranking .rank-1 { color: hsl(var(--primary)); }
 .ranking .participants { font-size: 1.125rem; font-weight: 600; line-height: 1.4; }
 .ranking .score { width: 12rem; font-size: 1.5rem; font-weight: 700; text-align: right; white-space: nowrap; }
@@ -253,6 +257,27 @@ table.ranking { width: 100%; border-collapse: collapse; table-layout: fixed; }
   .ranking td.score { font-size: 1.1875rem; } .ranking .score { width: 8.5rem; }
   .ranking .score .fc { margin-right: 4px; font-size: 1rem; }
 }
+
+/* PC: 枠を使わず列間の余白で名前を区切る。常に2行分確保して人数による縦ずれを防ぐ */
+@media (min-width: 1024px) {
+  .participants {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: repeat(2, 1.5em); gap: 4px 12px;
+    overflow: visible; white-space: normal; line-height: 1.5;
+  }
+  .participants li { display: block; min-width: 0; }
+  .participants[data-count="1"] li { grid-column: 1 / -1; }
+  .participants li:not(:last-child)::after { content: none; }
+  .participant-name { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .entry-head { flex-wrap: nowrap; min-height: 2rem; margin-bottom: 6px; }
+  .entry .participants, .best-link .participants { font-size: .875rem; }
+  .best-link .participants { font-weight: 600; }
+  .entry-score { font-size: clamp(1rem, 1.45vw, 1.375rem); }
+  .songs td { vertical-align: top; }
+  .best-link { display: flex; flex-direction: column; align-items: stretch; }
+  .best-score { margin-top: 6px; }
+}
+
 `
 
 // 保存したテーマ（light・dark）を描画前に反映する。保存がなければ端末の設定に従う。

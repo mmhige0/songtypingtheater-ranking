@@ -8,7 +8,6 @@ import { fetchBestScores, fetchRankings } from '../lib/ranking'
 import { findApprovedSong, searchSongs } from '../lib/song-query'
 import {
   PLAYER_COUNTS,
-  parseFlag,
   parsePage,
   parsePlayerCount,
   parseSearchText,
@@ -35,7 +34,7 @@ export const renderNotFound = (c: Context, message = 'ページが見つかり�
   render(c, <ErrorPage title="見つかりません" message={message} />, 404)
 
 const rankingFilter = (c: Context) => ({
-  fullComboOnly: parseFlag(c.req.query('fc'), 'fc'),
+  fullComboOnly: false,
   name: parseSearchText(c.req.query('name'), 'name'),
 })
 
@@ -98,7 +97,6 @@ pages.get('/songs/:gameSongId', async (c) => {
       song={song}
       rankings={rankings}
       selected={selected}
-      fullComboOnly={filter.fullComboOnly}
       name={filter.name}
       limit={SONG_RANKING_LIMIT}
     />,
@@ -123,7 +121,6 @@ pages.get('/songs/:gameSongId/players/:players', async (c) => {
       song={song}
       players={players}
       ranking={rankings.get(players)!}
-      fullComboOnly={filter.fullComboOnly}
       name={filter.name}
       page={page}
       limit={PLAYER_RANKING_LIMIT}

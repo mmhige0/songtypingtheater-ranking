@@ -13,7 +13,7 @@ export const toQuery = (params: Record<string, string | number | boolean | null 
   return text ? `?${text}` : ''
 }
 
-// フルコンボの王冠（lucideのCrown、ISCライセンス）
+// フルコンボの星（単色SVGでテーマに追従）
 export const FullComboMark = () => (
   <span class="fc" title="フルコンボ" role="img" aria-label="フルコンボ">
     <svg
@@ -28,17 +28,18 @@ export const FullComboMark = () => (
       stroke-linejoin="round"
       aria-hidden="true"
     >
-      <path d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.734H5.81a1 1 0 0 1-.957-.734L2.02 6.02a.5.5 0 0 1 .798-.519l4.276 3.664a1 1 0 0 0 1.516-.294z" />
-      <path d="M5 21h14" />
+      <path d="m12 3 2.78 5.63 6.22.9-4.5 4.39 1.06 6.2L12 17.19l-5.56 2.93 1.06-6.2L3 9.53l6.22-.9Z" />
     </svg>
   </span>
 )
 
-// 参加者の名前を1行で（色は表示しない。並びは色のR→B→Y→G順）。はみ出す分は省略し、全員の名前はtitleで出す
+// PCでは一人ずつ2列に並べる（色は表示しない。並びは色のR→B→Y→G順）。長い名前は各列内で省略する
 export const Participants = ({ participants }: { participants: Participant[] }) => (
-  <ul class="participants" title={participants.map((p) => p.name).join('・')}>
+  <ul class="participants" data-count={participants.length}>
     {participants.map((p) => (
-      <li>{p.name}</li>
+      <li title={p.name}>
+        <span class="participant-name">{p.name}</span>
+      </li>
     ))}
   </ul>
 )
@@ -50,7 +51,7 @@ export const RankingList = ({ entries, emptyMessage }: { entries: RankingEntry[]
   ) : (
     <ol class="ranking-list">
       {entries.map((entry) => (
-        <li class="entry">
+        <li class={entry.isFullCombo === true ? 'entry full-combo' : 'entry'}>
           <div class="entry-head">
             <span class={entry.rank === 1 ? 'entry-rank rank-1 num' : 'entry-rank num'}>{entry.rank}位</span>
             <span class="entry-score num">
@@ -79,7 +80,7 @@ export const RankingTable = ({ entries, emptyMessage }: { entries: RankingEntry[
       </thead>
       <tbody>
         {entries.map((entry) => (
-          <tr>
+          <tr class={entry.isFullCombo === true ? 'full-combo' : undefined}>
             <td class={entry.rank === 1 ? 'rank rank-1 num' : 'rank num'}>{entry.rank}位</td>
             <td>
               <Participants participants={entry.participants} />
