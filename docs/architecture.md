@@ -14,7 +14,7 @@ Cloudflareの無料プランで構築する。他構成との比較は行わず�
 | DB | Cloudflare D1（SQLite系） |
 | ORM・マイグレーション | Drizzle ORM。drizzle-kitで生成したSQLを`wrangler d1 migrations`で適用 |
 | 送信回数制限 | Workers Rate Limiting（バインディング）。使えない場合はD1の固定窓カウンター |
-| バックアップ | D1 Time Travel（7日）＋管理者の手動`wrangler d1 export` |
+| バックアップ | D1 Time Travel（7日）＋日次の暗号化SQLエクスポート（90日） |
 | 言語・テスト | TypeScript（strict）、Vitest＋`@cloudflare/vitest-plugin`（旧`@cloudflare/vitest-pool-workers`） |
 | 設定・型 | `wrangler.jsonc`。Workerの型は`wrangler types`で生成（`worker-configuration.d.ts`はコミットせず、型チェック時に生成） |
 | ドメイン | `ranking.kayomodoki.com`（Workersのカスタムドメイン）。移行期間中は`songtypingtheater-ranking.songtypingtheater-ranking.workers.dev`も受け付ける（`workers_dev: true`）。ゲームの送信先が切り替わり古いURLへの送信がなくなったら`workers_dev: false`で閉じる |
@@ -83,12 +83,12 @@ API仕様は重複JSONキーの検出を求める。`JSON.parse`・`c.req.json()
 
 ## バックアップ
 
-- D1 Time Travelで過去7日以内（無料プラン）の任意時点へ復元できる。復元はDBを上書きするが、返されるブックマークで取り消せる。
-- 7日より前に戻すため、管理者が手動で`wrangler d1 export <DB名> --remote`を実行し、SQLファイルを非公開の場所に保存する。目安は週1回と、移行の前後・大きな変更の前。
-- D1のエクスポートはwrangler CLIからのみ実行でき、Worker内からは実行できない。このためCron TriggerとR2による自動エクスポートは採用しない（R2有効化時の支払い方法登録も不要になる）。
-- エクスポート中は他のDBリクエストが待たされる。想定規模では短時間の見込みだが、アクセスの少ない時間帯に行う。
-- エクスポートはプレイヤー名・成績を含むため、リポジトリ外に保存する。Git・公開リポジトリのGitHub Actionsの成果物・ログには置かない。
-- 復元手順は実装後に一度実施して確認する。
+- D1 Time Travelによる直近7日分の復旧を維持し、追加でGitHub Actionsが毎日04:23 JSTに現時点のDB全体をSQLエクスポートする。
+- SQLを一時SQLiteへ復元し、主要テーブル・整合性・外部キーを検査した後、gzip＋AES-256-GCMで暗号化してActions artifactに90日間保存する。暗号化キーはGitHub Secretに置き、別途管理者が安全な場所へ保管する。
+- 平文SQL・実データ・暗号化キーはGit・artifact・ログへ残さない。公開artifactへ置くのは認証付き暗号化を済ませたファイルだけ。鍵が漏れれば公開された暗号文を復号できるため、鍵の管理は必須。
+- R2は使わず、支払い方法登録は不要。手動実行も可能。移行や大きな変更の前にも取得する。
+- エクスポート中は他のDBリクエストが待たされるため、アクセスの少ない時間帯に行う。
+- 設定・運用上の制限・復元手順は[バックアップ運用](backups.md)を参照。開始前の状態を後から取得する仕組みではなく、取得開始後に7日超の世代が蓄積する。
 
 ## CI・デプロイ
 

@@ -13,6 +13,7 @@
 - [初回登録・再送仕様](docs/auth-options.md): クライアント生成トークンの登録・応答消失対策
 - [データ設計案](docs/data-design.md): 曲・プレイヤー・記録とLyricDataCreator連携
 - [システム構成](docs/architecture.md): Cloudflare構成、D1でのトランザクション方針、送信回数制限、バックアップ
+- [バックアップ運用](docs/backups.md): 日次取得・90日保存の設定と復元手順
 - [決定事項と残課題](docs/decisions.md): 残課題
 
 ## 状態と進め方
