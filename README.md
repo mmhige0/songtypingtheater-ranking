@@ -53,6 +53,14 @@ Node.js 22を使用。Cloudflare上の初期設定は[システム構成](docs/a
   - `CLOUDFLARE_API_TOKEN`: Cloudflareで作成したAPIトークン。テンプレート「Edit Cloudflare Workers」を使い、ゾーンは`kayomodoki.com`（独自ドメインのルート設定に必要）。
   - `CLOUDFLARE_ACCOUNT_ID`: CloudflareのアカウントID。
 
+## バックアップと復旧
+
+- **直近7日以内の誤操作**: Cloudflare D1 Time Travelで、現在のDB全体を指定日時へ戻す。
+- **7日より前・別DBへの復元**: 非公開の[バックアップ専用リポジトリ](https://github.com/mmhige0/songtypingtheater-ranking-backups)に保存した日次artifact（90日保存）から、新規DBへ復元する。
+- 本番復旧では送信を止めて現在のDBを保存し、スキーマ・曲一覧・ランキングを確認する。artifactからの復元は、確認後に本番の接続先を切り替える。旧DBは復旧確認まで残し、日次バックアップの接続先も更新する。
+
+具体的なコマンド・確認項目・切り戻しは[復旧手順](https://github.com/mmhige0/songtypingtheater-ranking-backups/blob/main/docs/backups.md)を参照（専用リポジトリの閲覧権限が必要）。復元時点より後の登録・成績は自動では引き継がれない。
+
 ## 曲の登録
 
 曲の登録・修正は管理者（運営者とゲーム開発者）が管理用キーを使って行う。新曲はゲームに公開する前に登録する（未登録の曲番の成績は`422 UNKNOWN_SONG`で失われる）。管理用キーは公開の場所に書かない。
