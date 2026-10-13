@@ -30,6 +30,7 @@ songsRoute.get('/', async (c) => {
   const { songs, total } = await searchSongs(c.env.DB, {
     q: parseSearchText(c.req.query('q'), 'q'),
     level: parseLevel(c.req.query('level')),
+    levelRange: null,
     sort: parseSongSort(c.req.query('sort')),
     dir: parseSortDir(c.req.query('dir')),
     limit,

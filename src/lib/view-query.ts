@@ -61,6 +61,29 @@ export const parseLevel = (value: string | undefined) => {
   return raw
 }
 
+// 曲一覧のレベルの範囲（Lv.1〜10の整数）。範囲には「5-」「5+」も含む
+export const LEVEL_FILTER_MIN = 1
+export const LEVEL_FILTER_MAX = 10
+export type LevelRange = { min: number; max: number }
+
+const parseFilterLevel = (value: string | undefined, field: string) => {
+  const raw = optional(value)
+  if (raw === undefined) return undefined
+  if (!/^[0-9]+$/.test(raw) || Number(raw) < LEVEL_FILTER_MIN || Number(raw) > LEVEL_FILTER_MAX) {
+    throw invalidRequest(`${field}は${LEVEL_FILTER_MIN}〜${LEVEL_FILTER_MAX}の整数にしてください`)
+  }
+  return Number(raw)
+}
+
+// 下限が上限より大きければ入れ替える。全範囲（指定なしを含む）ならnull
+export const parseLevelRange = (minValue: string | undefined, maxValue: string | undefined): LevelRange | null => {
+  const a = parseFilterLevel(minValue, 'levelMin') ?? LEVEL_FILTER_MIN
+  const b = parseFilterLevel(maxValue, 'levelMax') ?? LEVEL_FILTER_MAX
+  const min = Math.min(a, b)
+  const max = Math.max(a, b)
+  return min === LEVEL_FILTER_MIN && max === LEVEL_FILTER_MAX ? null : { min, max }
+}
+
 export const SONG_SORTS = ['id', 'level'] as const
 export type SongSort = (typeof SONG_SORTS)[number]
 

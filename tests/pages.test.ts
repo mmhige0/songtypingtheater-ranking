@@ -70,6 +70,34 @@ describe('song list page', () => {
     expect(await html('/?q=存在しない曲')).toContain('条件に一致する曲がありません')
   })
 
+  it('filters songs by level range including + and - levels', async () => {
+    await insertSong('002', 'レベル3の曲', { level: '3', levelSortValue: 9 })
+    await insertSong('003', 'レベル7-の曲', { level: '7-', levelSortValue: 20 })
+    await insertSong('004', 'レベル未設定の曲', { level: '?' })
+    await insertSong('005', 'レベル7+の曲', { level: '7+', levelSortValue: 22 })
+    for (const path of ['/?levelMin=5&levelMax=7', '/?levelMin=7&levelMax=5']) {
+      const text = await html(path)
+      expect(text, path).toContain('架空の曲名')
+      expect(text, path).toContain('レベル7-の曲')
+      expect(text, path).toContain('レベル7+の曲')
+      expect(text, path).not.toContain('レベル3の曲')
+      expect(text, path).not.toContain('レベル未設定の曲')
+      expect(text, path).toContain('全3曲')
+      // 並べ替え・ページ送り・検索のクリアでも範囲を保つ
+      expect(text, path).toContain('href="/?levelMin=5&amp;levelMax=7&amp;dir=asc"')
+      expect(text, path).toContain('href="/?levelMin=5&amp;levelMax=7&amp;sort=level"')
+    }
+    // 全範囲は絞り込まず、レベル未設定の曲も出す。既定値はリンクに付けない
+    const all = await html('/?levelMin=1&levelMax=10')
+    expect(all).toContain('レベル未設定の曲')
+    expect(all).toContain('href="/?dir=asc"')
+    const upper = await html('/?levelMax=3')
+    expect(upper).toContain('レベル3の曲')
+    expect(upper).not.toContain('架空の曲名')
+    expect(upper).toContain('href="/?levelMax=3&amp;dir=asc"')
+    expect(await html('/?levelMin=8')).toContain('条件に一致する曲がありません')
+  })
+
   it('renders a table whose sort headers toggle the direction', async () => {
     await insertSong('002', '架空の曲2', { level: '3', levelSortValue: 9 })
     const text = await html('/')
@@ -88,20 +116,23 @@ describe('song list page', () => {
     expect(asc).toContain('<input type="hidden" name="dir" value="asc"/>')
   })
 
-  it('points the infinite scroll at the next page', async () => {
+  it('links every page by its page number', async () => {
     await env.DB.batch(
-      Array.from({ length: 50 }, (_, i) =>
+      Array.from({ length: 100 }, (_, i) =>
         env.DB.prepare(
           `INSERT INTO song (game_song_id, title, status, created_at, updated_at) VALUES (?, ?, 'approved', ?, ?)`,
         ).bind(String(100 + i), `曲${i}`, at(0), at(0)),
       ),
     )
     const first = await html('/?sort=level')
-    expect(first).toContain('data-next="/?sort=level&amp;page=2"')
-    expect(first).toContain('全51曲')
+    expect(first).toContain('全101曲')
+    expect(first).toContain('<a class="chip active num" href="/?sort=level" aria-current="page">1</a>')
+    expect(first).toContain('<a class="chip num" href="/?sort=level&amp;page=2">2</a>')
+    expect(first).toContain('data-live-nav="top"')
+    expect(first).toContain('data-live-nav="bottom"')
     const second = await html('/?sort=level&page=2')
-    expect(second).not.toContain('data-next=')
-    expect(second).toContain('2 / 2 ページ（51件）')
+    expect(second).toContain('<a class="chip active num" href="/?sort=level&amp;page=2" aria-current="page">2</a>')
+    expect(second).toContain('<span class="button button-outline" aria-disabled="true">次へ</span>')
   })
 })
 
@@ -227,6 +258,9 @@ describe('page errors', () => {
   it('returns HTML for invalid queries', async () => {
     expect(await html('/?sort=title', 400)).toContain('sortはidまたはlevelにしてください')
     expect(await html('/?dir=up', 400)).toContain('dirはascまたはdescにしてください')
+    expect(await html('/?levelMin=0', 400)).toContain('levelMinは1〜10の整数にしてください')
+    expect(await html('/?levelMax=11', 400)).toContain('levelMaxは1〜10の整数にしてください')
+    expect(await html('/?levelMin=5.5', 400)).toContain('levelMinは1〜10の整数にしてください')
   })
 })
 
