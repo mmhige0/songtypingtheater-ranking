@@ -1,4 +1,4 @@
-import type { SongSort, SortDir } from './view-query'
+import type { LevelRange, SongSort, SortDir } from './view-query'
 
 // 公開の曲一覧・ランキングの対象はstatus=approvedの曲だけ
 
@@ -56,9 +56,18 @@ const loadApprovedSongs = async (db: D1Database): Promise<CachedSong[]> => {
 // SQLiteのlower()と同じく英字A〜Zだけを小文字にする（全角英字等は区別したまま）
 const asciiLower = (s: string) => s.replace(/[A-Z]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 32))
 
-// 曲番号・曲名・アーティストの部分一致（英字の大文字・小文字は区別しない）
-const matches = (song: CachedSong, q: string | null, level: string | null) => {
+// 曲番号・曲名・アーティストの部分一致（英字の大文字・小文字は区別しない）。
+// レベルの範囲はLv.5〜7なら「5-」〜「7+」で、レベル未設定の曲は含めない
+const matches = (song: CachedSong, q: string | null, level: string | null, levelRange: LevelRange | null) => {
   if (level !== null && song.level !== level) return false
+  if (
+    levelRange !== null &&
+    (song.levelSortValue === null ||
+      song.levelSortValue < levelRange.min * 3 - 1 ||
+      song.levelSortValue > levelRange.max * 3 + 1)
+  ) {
+    return false
+  }
   if (q === null) return true
   const lq = asciiLower(q)
   return (
@@ -89,13 +98,22 @@ export const searchSongs = async (
   {
     q,
     level,
+    levelRange,
     sort,
     dir,
     limit,
     offset,
-  }: { q: string | null; level: string | null; sort: SongSort; dir: SortDir; limit: number; offset: number },
+  }: {
+    q: string | null
+    level: string | null
+    levelRange: LevelRange | null
+    sort: SongSort
+    dir: SortDir
+    limit: number
+    offset: number
+  },
 ) => {
-  const matched = (await loadApprovedSongs(db)).filter((song) => matches(song, q, level))
+  const matched = (await loadApprovedSongs(db)).filter((song) => matches(song, q, level, levelRange))
   matched.sort(songComparator(sort, dir))
   return {
     songs: matched

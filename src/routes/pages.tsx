@@ -8,6 +8,7 @@ import { fetchBestScores, fetchRankings } from '../lib/ranking'
 import { findApprovedSong, searchSongs } from '../lib/song-query'
 import {
   PLAYER_COUNTS,
+  parseLevelRange,
   parsePage,
   parsePlayerCount,
   parseSearchText,
@@ -53,12 +54,14 @@ pages.onError((error, c) => {
 
 pages.get('/', async (c) => {
   const q = parseSearchText(c.req.query('q'), 'q')
+  const levelRange = parseLevelRange(c.req.query('levelMin'), c.req.query('levelMax'))
   const sort = parseSongSort(c.req.query('sort'))
   const dir = parseSortDir(c.req.query('dir'))
   const page = parsePage(c.req.query('page'))
   const { songs, total } = await searchSongs(c.env.DB, {
     q,
     level: null,
+    levelRange,
     sort,
     dir,
     limit: SONG_LIST_LIMIT,
@@ -73,6 +76,7 @@ pages.get('/', async (c) => {
     <SongListPage
       songs={songs.map((song) => ({ ...song, bestScores: bestScores.get(song.id)! }))}
       q={q}
+      levelRange={levelRange}
       sort={sort}
       dir={dir}
       page={page}

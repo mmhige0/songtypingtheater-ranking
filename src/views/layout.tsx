@@ -16,7 +16,7 @@ const LIGHT = `
   --destructive: 0 75% 55%; --success: 150 65% 38%;
   --border: 215 20% 88%; --border-subtle: 215 15% 92%;
   --field: 215 25% 98%; --field-border: 215 20% 88%; --ring: 215 80% 55%;
-  --header: 215 30% 97%; --gold: 42 95% 42%; --full-combo-bg: 210 75% 96%;
+  --header: 215 30% 97%; --gold: 42 95% 42%; --full-combo-bg: 210 75% 96%; --slider-track: 215 20% 92%;
   --sun: block; --moon: none;
 `
 
@@ -29,7 +29,7 @@ const DARK = `
   --destructive: 0 65% 55%; --success: 150 55% 42%;
   --border: 220 18% 20%; --border-subtle: 220 15% 16%;
   --field: 220 14% 15%; --field-border: 0 0% 32%; --ring: 200 65% 50%;
-  --header: 220 15% 11%; --gold: 45 95% 58%; --full-combo-bg: 210 30% 18%;
+  --header: 220 15% 11%; --gold: 45 95% 58%; --full-combo-bg: 210 30% 18%; --slider-track: 220 15% 32%;
   --sun: none; --moon: block;
 `
 
@@ -163,6 +163,37 @@ input[type=search]:focus-visible, select:focus-visible {
 }
 .search-clear[hidden] { display: none; }
 .search-clear:hover { background: hsl(var(--muted)); color: hsl(var(--foreground)); }
+
+/* レベルの範囲のスライダー（LyricDataCreatorと同じ見た目）。JSが有効なら2つの範囲入力を重ねて1本にし、つまみだけを押せるようにする */
+.level-filter { display: flex; flex: 1 1 260px; align-items: center; gap: 16px; max-width: 400px; min-width: 0; }
+.level-value { flex: none; font-size: .875rem; font-weight: 600; }
+.level-slider { display: flex; flex: 1; gap: 8px; min-width: 0; }
+.level-slider input[type=range] { min-width: 0; accent-color: hsl(var(--primary)); }
+.js .level-slider { position: relative; display: block; max-width: 280px; height: 20px; }
+.js .level-slider::before {
+  content: ""; position: absolute; top: 6px; left: 10px; right: 10px; height: 8px; border-radius: 999px;
+  background: linear-gradient(to right, hsl(var(--slider-track)) var(--lo), hsl(var(--primary)) var(--lo),
+    hsl(var(--primary)) var(--hi), hsl(var(--slider-track)) var(--hi));
+}
+.js .level-slider input[type=range] {
+  position: absolute; inset: 0; width: 100%; height: 20px; margin: 0; background: none;
+  -webkit-appearance: none; appearance: none; pointer-events: none;
+}
+.js .level-slider input[type=range]::-webkit-slider-runnable-track { background: none; }
+.js .level-slider input[type=range]::-moz-range-track { background: none; }
+.js .level-slider input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 20px; height: 20px; border: 2px solid hsl(var(--primary) / .5); border-radius: 999px;
+  background: hsl(var(--background)); box-shadow: 0 4px 6px -1px rgb(0 0 0 / .1); cursor: pointer; pointer-events: auto;
+}
+.js .level-slider input[type=range]::-moz-range-thumb {
+  box-sizing: border-box; width: 20px; height: 20px; border: 2px solid hsl(var(--primary) / .5); border-radius: 999px;
+  background: hsl(var(--background)); box-shadow: 0 4px 6px -1px rgb(0 0 0 / .1); cursor: pointer; pointer-events: auto;
+}
+.js .level-slider input[type=range]:hover::-webkit-slider-thumb { box-shadow: 0 0 0 2px hsl(var(--primary) / .3); }
+.js .level-slider input[type=range]:hover::-moz-range-thumb { box-shadow: 0 0 0 2px hsl(var(--primary) / .3); }
+.js .level-slider input[type=range]:focus-visible { outline: none; }
+.js .level-slider input[type=range]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 2px hsl(var(--primary)); }
+.js .level-slider input[type=range]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 2px hsl(var(--primary)); }
 
 /* ランキング（曲一覧）: 列幅固定の表。狭い画面は枠の中で横スクロールする */
 #sort-state { display: contents; }

@@ -126,7 +126,9 @@ export const SearchField = ({
 // form[data-live]の入力・チェックで結果（data-liveのidの要素）だけを差し替え、URLを書き換える。
 // 検索語は入力が止まって250ms後、チェックボックスはすぐ反映する。ラジオ（人数タブ）はURLだけ書き換える。
 // data-syncの要素（並べ替えの状態）も取得したページの同じidの要素に置き換える。
-// 並べ替えの見出しとdata-live-navのページ送りのリンクも結果だけを差し替える。下側のページ送りなら結果の先頭へスクロールする
+// 並べ替えの見出しとdata-live-navのページ送りのリンクも結果だけを差し替える。下側のページ送りなら結果の先頭へスクロールする。
+// data-defaultと同じ値の項目はURLに付けない。レベルのスライダーは動かしている間は表示だけを変え、離したとき（change）に反映する。
+// つまみが交差したら離したときに下限・上限を入れ替える
 const LIVE_SEARCH_SCRIPT = `(function(){
 var form=document.querySelector('form[data-live]');if(!form)return;
 var targetId=form.dataset.live,input=form.querySelector('input[type=search]'),clear=form.querySelector('.search-clear'),
@@ -134,7 +136,8 @@ seq=0,timer;
 function results(){return document.getElementById(targetId)}
 function fetchDoc(url){return fetch(url).then(function(r){if(!r.ok)throw new Error(String(r.status));return r.text()})
 .then(function(t){return new DOMParser().parseFromString(t,'text/html')})}
-function formUrl(){var p=new URLSearchParams();new FormData(form).forEach(function(v,k){if(String(v).trim())p.append(k,v)});
+function formUrl(){var p=new URLSearchParams();new FormData(form).forEach(function(v,k){var el=form.elements[k];
+if(String(v).trim()&&!(el&&el.dataset&&el.dataset.default===v))p.append(k,v)});
 var s=p.toString();return form.getAttribute('action')+(s?'?'+s:'')}
 function show(url,top){var id=++seq;
 fetchDoc(url).then(function(doc){if(id!==seq)return;var next=doc.getElementById(targetId);if(next)results().replaceWith(next);
@@ -142,6 +145,13 @@ document.querySelectorAll('[data-sync]').forEach(function(el){var n=doc.getEleme
 history.replaceState(null,'',url);if(top)results().scrollIntoView()})
 .catch(function(e){if(id!==seq)return;var p=document.createElement('p');p.className='empty-box';
 p.textContent='読み込みに失敗しました（'+e.message+'）。時間をおいて再度お試しください';results().replaceChildren(p)})}
+form.querySelectorAll('[data-level-filter]').forEach(function(f){var lo=f.querySelector('[name=levelMin]'),
+hi=f.querySelector('[name=levelMax]'),labels=f.querySelectorAll('.level-value'),slider=f.querySelector('.level-slider');
+function pct(v){return(v-lo.min)/(lo.max-lo.min)*100+'%'}
+function sync(){var a=Math.min(+lo.value,+hi.value),b=Math.max(+lo.value,+hi.value);
+labels[0].textContent='Lv.'+a;labels[1].textContent='Lv.'+b;slider.style.setProperty('--lo',pct(a));slider.style.setProperty('--hi',pct(b))}
+f.addEventListener('input',sync);
+f.addEventListener('change',function(){if(+lo.value>+hi.value){var v=lo.value;lo.value=hi.value;hi.value=v}sync()});sync()});
 if(input)input.addEventListener('input',function(){if(clear)clear.hidden=!input.value;clearTimeout(timer);
 timer=setTimeout(function(){show(formUrl())},250)});
 if(clear)clear.addEventListener('click',function(e){e.preventDefault();clearTimeout(timer);input.value='';clear.hidden=true;
