@@ -7,7 +7,7 @@ import {
   LiveSearchScript,
   Pagination,
   Participants,
-  RangePagination,
+  PageNumberPagination,
   RankingList,
   RankingTable,
   SearchField,
@@ -67,7 +67,6 @@ export type SongListProps = {
   page: number
   limit: number
   total: number
-  pageBounds: { first: string; last: string }[]
 }
 
 // 既定値（No.の降順・1ページ目）はクエリに付けない
@@ -82,14 +81,6 @@ const songListPath = ({
   dir: SortDir
   page?: number
 }) => `/${toQuery({ q, sort: sort === 'id' ? null : sort, dir: dir === 'desc' ? null : dir, page: pageParam(page) })}`
-
-// ページ送りのボタンの表示。No.順ならそのページの曲番号の範囲を降順でも小さい番号から書き、Lv.順はページ番号
-const pageLabel = (sort: SongSort, dir: SortDir, pageBounds: SongListProps['pageBounds']) => (page: number) => {
-  const bounds = pageBounds[page - 1]
-  if (sort !== 'id' || bounds === undefined) return String(page)
-  const [from, to] = dir === 'asc' ? [bounds.first, bounds.last] : [bounds.last, bounds.first]
-  return from === to ? `No.${from}` : `No.${from}-${to}`
-}
 
 // 並べ替えの列見出し。選択中の列をもう一度押すと昇順・降順を切り替える
 const SortHeader = ({
@@ -143,7 +134,7 @@ const BestCell = ({ song, count, best }: { song: SongSummary; count: PlayerCount
   </td>
 )
 
-export const SongListPage = ({ songs, q, sort, dir, page, limit, total, pageBounds }: SongListProps) => (
+export const SongListPage = ({ songs, q, sort, dir, page, limit, total }: SongListProps) => (
   <Layout title="">
     <h1 class="page-title">ランキング</h1>
     <form id="song-search" class="box filters" method="get" action="/" role="search" data-live="song-results">
@@ -160,12 +151,11 @@ export const SongListPage = ({ songs, q, sort, dir, page, limit, total, pageBoun
       ) : (
         <>
           <p class="result-count small muted">全{total}曲</p>
-          <RangePagination
+          <PageNumberPagination
             page={page}
             limit={limit}
             total={total}
             href={(p) => songListPath({ q, sort, dir, page: p })}
-            label={pageLabel(sort, dir, pageBounds)}
             placement="top"
           />
           <div class="box table-wrap">
@@ -220,12 +210,11 @@ export const SongListPage = ({ songs, q, sort, dir, page, limit, total, pageBoun
           </div>
         </>
       )}
-      <RangePagination
+      <PageNumberPagination
         page={page}
         limit={limit}
         total={total}
         href={(p) => songListPath({ q, sort, dir, page: p })}
-        label={pageLabel(sort, dir, pageBounds)}
         placement="bottom"
       />
     </div>

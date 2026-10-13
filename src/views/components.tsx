@@ -192,28 +192,26 @@ const PageStep = ({ label, href }: { label: string; href: string | null }) =>
     </a>
   )
 
-// 「No.1-100」のように各ページへ直接飛べるボタンを並べたページ送り。表示はlabelで決める。表の上下に置き、
+// 各ページへ直接飛べるページ番号のボタンを並べたページ送り。表の上下に置き、
 // JSが有効なら結果だけを差し替える（下側は結果の先頭へスクロールする）
-export const RangePagination = ({
+export const PageNumberPagination = ({
   page,
   limit,
   total,
   href,
-  label,
   placement,
 }: {
   page: number
   limit: number
   total: number
   href: (page: number) => string
-  label: (page: number) => string
   placement: 'top' | 'bottom'
 }) => {
   const lastPage = Math.max(1, Math.ceil(total / limit))
   if (lastPage === 1 && page === 1) return null
   return (
     <nav
-      class={`pagination range-pagination ${placement}`}
+      class={`pagination page-number-pagination ${placement}`}
       aria-label={placement === 'top' ? 'ページ送り' : 'ページ送り（下）'}
       data-live-nav={placement}
     >
@@ -226,7 +224,7 @@ export const RangePagination = ({
               href={href(p)}
               aria-current={p === page ? 'page' : undefined}
             >
-              {label(p)}
+              {p}
             </a>
           </li>
         ))}

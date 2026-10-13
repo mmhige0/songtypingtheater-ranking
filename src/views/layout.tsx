@@ -147,8 +147,8 @@ input[type=search]:focus-visible, select:focus-visible {
 /* 達成が確認できた記録だけ背景を変える。不明・未達成の記録には適用しない */
 .full-combo { background: hsl(var(--full-combo-bg)); }
 .pagination { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px; margin: 24px 0 0; }
-/* 曲一覧の「No.1-100」のような各ページへのボタン。表の上側は表との間を詰める */
-.range-pagination.top { margin: 0 0 12px; }
+/* 曲一覧のページ番号のボタン。表の上側は表との間を詰める */
+.page-number-pagination.top { margin: 0 0 12px; }
 .page-ranges { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 0; padding: 0; list-style: none; }
 .back-link { display: inline-block; margin-bottom: 12px; font-size: .875rem; text-decoration: none; }
 

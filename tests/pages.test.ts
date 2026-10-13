@@ -88,7 +88,7 @@ describe('song list page', () => {
     expect(asc).toContain('<input type="hidden" name="dir" value="asc"/>')
   })
 
-  it('labels each page with its song number range in ascending order', async () => {
+  it('links every page by its page number', async () => {
     await env.DB.batch(
       Array.from({ length: 100 }, (_, i) =>
         env.DB.prepare(
@@ -96,25 +96,15 @@ describe('song list page', () => {
         ).bind(String(100 + i), `曲${i}`, at(0), at(0)),
       ),
     )
-    // 既定のNo.降順でも範囲は小さい番号から書く
-    const first = await html('/')
+    const first = await html('/?sort=level')
     expect(first).toContain('全101曲')
-    expect(first).toContain('<a class="chip active num" href="/" aria-current="page">No.100-199</a>')
-    expect(first).toContain('<a class="chip num" href="/?page=2">No.001</a>')
+    expect(first).toContain('<a class="chip active num" href="/?sort=level" aria-current="page">1</a>')
+    expect(first).toContain('<a class="chip num" href="/?sort=level&amp;page=2">2</a>')
     expect(first).toContain('data-live-nav="top"')
     expect(first).toContain('data-live-nav="bottom"')
-    const second = await html('/?page=2')
-    expect(second).toContain('<a class="chip active num" href="/?page=2" aria-current="page">No.001</a>')
+    const second = await html('/?sort=level&page=2')
+    expect(second).toContain('<a class="chip active num" href="/?sort=level&amp;page=2" aria-current="page">2</a>')
     expect(second).toContain('<span class="button button-outline" aria-disabled="true">次へ</span>')
-
-    const asc = await html('/?dir=asc')
-    expect(asc).toContain('aria-current="page">No.001-198</a>')
-    expect(asc).toContain('>No.199</a>')
-
-    // Lv.順は曲番号の範囲に意味がないのでページ番号
-    const level = await html('/?sort=level')
-    expect(level).toContain('<a class="chip active num" href="/?sort=level" aria-current="page">1</a>')
-    expect(level).toContain('<a class="chip num" href="/?sort=level&amp;page=2">2</a>')
   })
 })
 

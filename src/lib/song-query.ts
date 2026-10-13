@@ -102,11 +102,6 @@ export const searchSongs = async (
       .slice(offset, offset + limit)
       .map(({ id, gameSongId, title, artist, level }) => ({ id, gameSongId, title, artist, level })),
     total: matched.length,
-    // ページごとの先頭・末尾の曲番号（画面のページ送りの表示用）
-    pageBounds: Array.from({ length: Math.ceil(matched.length / limit) }, (_, i) => ({
-      first: matched[i * limit]!.gameSongId,
-      last: matched[Math.min((i + 1) * limit, matched.length) - 1]!.gameSongId,
-    })),
   }
 }
 
