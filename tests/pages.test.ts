@@ -88,20 +88,23 @@ describe('song list page', () => {
     expect(asc).toContain('<input type="hidden" name="dir" value="asc"/>')
   })
 
-  it('points the infinite scroll at the next page', async () => {
+  it('links every page by its range of rows', async () => {
     await env.DB.batch(
-      Array.from({ length: 50 }, (_, i) =>
+      Array.from({ length: 100 }, (_, i) =>
         env.DB.prepare(
           `INSERT INTO song (game_song_id, title, status, created_at, updated_at) VALUES (?, ?, 'approved', ?, ?)`,
         ).bind(String(100 + i), `曲${i}`, at(0), at(0)),
       ),
     )
     const first = await html('/?sort=level')
-    expect(first).toContain('data-next="/?sort=level&amp;page=2"')
-    expect(first).toContain('全51曲')
+    expect(first).toContain('全101曲')
+    expect(first).toContain('<a class="chip active num" href="/?sort=level" aria-current="page">1-100</a>')
+    expect(first).toContain('<a class="chip num" href="/?sort=level&amp;page=2">101</a>')
+    expect(first).toContain('data-live-nav="top"')
+    expect(first).toContain('data-live-nav="bottom"')
     const second = await html('/?sort=level&page=2')
-    expect(second).not.toContain('data-next=')
-    expect(second).toContain('2 / 2 ページ（51件）')
+    expect(second).toContain('<a class="chip active num" href="/?sort=level&amp;page=2" aria-current="page">101</a>')
+    expect(second).toContain('<span class="button button-outline" aria-disabled="true">次へ</span>')
   })
 })
 

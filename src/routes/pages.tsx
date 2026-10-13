@@ -16,7 +16,8 @@ import {
 } from '../lib/view-query'
 import { ErrorPage, PlayerRankingPage, SongListPage, SongRankingPage } from '../views/pages'
 
-const SONG_LIST_LIMIT = 50
+// fetchBestScoresは曲IDを1つずつバインドするため、D1の上限（1クエリ100個）を超えないこと
+const SONG_LIST_LIMIT = 100
 // 曲別ランキングで人数ごとに表示する件数。超えた分は人数別ページで見る
 const SONG_RANKING_LIMIT = 10
 const PLAYER_RANKING_LIMIT = 50

@@ -126,34 +126,22 @@ export const SearchField = ({
 // form[data-live]の入力・チェックで結果（data-liveのidの要素）だけを差し替え、URLを書き換える。
 // 検索語は入力が止まって250ms後、チェックボックスはすぐ反映する。ラジオ（人数タブ）はURLだけ書き換える。
 // data-syncの要素（並べ替えの状態）も取得したページの同じidの要素に置き換える。
-// 結果の中に.load-moreがあれば、近づいたときにdata-nextのページの#song-rowsの行を末尾に足す
+// 並べ替えの見出しとdata-live-navのページ送りのリンクも結果だけを差し替える。下側のページ送りなら結果の先頭へスクロールする
 const LIVE_SEARCH_SCRIPT = `(function(){
 var form=document.querySelector('form[data-live]');if(!form)return;
 var targetId=form.dataset.live,input=form.querySelector('input[type=search]'),clear=form.querySelector('.search-clear'),
-seq=0,timer,observer,loading=false;
+seq=0,timer;
 function results(){return document.getElementById(targetId)}
 function fetchDoc(url){return fetch(url).then(function(r){if(!r.ok)throw new Error(String(r.status));return r.text()})
 .then(function(t){return new DOMParser().parseFromString(t,'text/html')})}
 function formUrl(){var p=new URLSearchParams();new FormData(form).forEach(function(v,k){if(String(v).trim())p.append(k,v)});
 var s=p.toString();return form.getAttribute('action')+(s?'?'+s:'')}
-function show(url){var id=++seq;loading=false;if(observer)observer.disconnect();
+function show(url,top){var id=++seq;
 fetchDoc(url).then(function(doc){if(id!==seq)return;var next=doc.getElementById(targetId);if(next)results().replaceWith(next);
 document.querySelectorAll('[data-sync]').forEach(function(el){var n=doc.getElementById(el.id);if(n)el.replaceWith(n)});
-history.replaceState(null,'',url);watch()})
+history.replaceState(null,'',url);if(top)results().scrollIntoView()})
 .catch(function(e){if(id!==seq)return;var p=document.createElement('p');p.className='empty-box';
 p.textContent='読み込みに失敗しました（'+e.message+'）。時間をおいて再度お試しください';results().replaceChildren(p)})}
-function watch(){var more=results().querySelector('.load-more');if(!more)return;
-observer=new IntersectionObserver(function(es){if(es[0].isIntersecting)loadMore(more)},{rootMargin:'200px 0px'});
-observer.observe(more)}
-function loadMore(more){if(loading)return;loading=true;var id=seq,status=more.querySelector('.load-more-status');
-status.textContent='さらに読み込み中...';
-fetchDoc(more.dataset.next).then(function(doc){if(id!==seq)return;loading=false;observer.disconnect();
-var rows=doc.getElementById('song-rows'),body=document.getElementById('song-rows');
-if(rows&&body)body.append.apply(body,Array.prototype.slice.call(rows.children));
-var next=doc.querySelector('#'+targetId+' .load-more');if(next){more.replaceWith(next);watch()}else more.remove()})
-.catch(function(){if(id!==seq)return;loading=false;var b=document.createElement('button');
-b.type='button';b.className='button button-outline';b.textContent='読み込みに失敗しました（再試行）';
-b.addEventListener('click',function(){loadMore(more)});status.replaceChildren(b)})}
 if(input)input.addEventListener('input',function(){if(clear)clear.hidden=!input.value;clearTimeout(timer);
 timer=setTimeout(function(){show(formUrl())},250)});
 if(clear)clear.addEventListener('click',function(e){e.preventDefault();clearTimeout(timer);input.value='';clear.hidden=true;
@@ -161,9 +149,10 @@ input.focus();show(formUrl())});
 form.addEventListener('submit',function(e){e.preventDefault();clearTimeout(timer);show(formUrl())});
 document.addEventListener('change',function(e){var t=e.target;if(t.form!==form||t.type==='search')return;
 if(t.type==='radio'){history.replaceState(null,'',formUrl());return}clearTimeout(timer);show(formUrl())});
-document.addEventListener('click',function(e){var a=e.target.closest&&e.target.closest('#'+targetId+' .sort-link');
-if(!a||e.button!==0||e.ctrlKey||e.metaKey||e.shiftKey||e.altKey)return;e.preventDefault();show(a.href)});
-watch()})()`
+document.addEventListener('click',function(e){
+var a=e.target.closest&&e.target.closest('#'+targetId+' .sort-link, #'+targetId+' [data-live-nav] a');
+if(!a||e.button!==0||e.ctrlKey||e.metaKey||e.shiftKey||e.altKey)return;e.preventDefault();
+show(a.href,!!a.closest('[data-live-nav=bottom]'))})})()`
 
 export const LiveSearchScript = () => <script dangerouslySetInnerHTML={{ __html: LIVE_SEARCH_SCRIPT }} />
 
@@ -182,27 +171,70 @@ export const Pagination = ({
   if (lastPage === 1 && page === 1) return null
   return (
     <nav class="pagination" aria-label="ページ送り">
-      {page > 1 ? (
-        <a class="button button-outline" href={href(Math.min(page - 1, lastPage))}>
-          前へ
-        </a>
-      ) : (
-        <span class="button button-outline" aria-disabled="true">
-          前へ
-        </span>
-      )}
+      <PageStep label="前へ" href={page > 1 ? href(Math.min(page - 1, lastPage)) : null} />
       <span class="num small muted">
         {page} / {lastPage} ページ（{total}件）
       </span>
-      {page < lastPage ? (
-        <a class="button button-outline" href={href(page + 1)}>
-          次へ
-        </a>
-      ) : (
-        <span class="button button-outline" aria-disabled="true">
-          次へ
-        </span>
-      )}
+      <PageStep label="次へ" href={page < lastPage ? href(page + 1) : null} />
+    </nav>
+  )
+}
+
+// 前へ・次へ。行き先がなければ押せない表示にする
+const PageStep = ({ label, href }: { label: string; href: string | null }) =>
+  href === null ? (
+    <span class="button button-outline" aria-disabled="true">
+      {label}
+    </span>
+  ) : (
+    <a class="button button-outline" href={href}>
+      {label}
+    </a>
+  )
+
+// 「1-100」「101-200」のように件数の範囲で各ページへ直接飛べるページ送り。表の上下に置き、
+// JSが有効なら結果だけを差し替える（下側は結果の先頭へスクロールする）
+export const RangePagination = ({
+  page,
+  limit,
+  total,
+  href,
+  placement,
+}: {
+  page: number
+  limit: number
+  total: number
+  href: (page: number) => string
+  placement: 'top' | 'bottom'
+}) => {
+  const lastPage = Math.max(1, Math.ceil(total / limit))
+  if (lastPage === 1 && page === 1) return null
+  const range = (p: number) => {
+    const start = (p - 1) * limit + 1
+    const end = Math.min(p * limit, total)
+    return start === end ? String(start) : `${start}-${end}`
+  }
+  return (
+    <nav
+      class={`pagination range-pagination ${placement}`}
+      aria-label={placement === 'top' ? 'ページ送り' : 'ページ送り（下）'}
+      data-live-nav={placement}
+    >
+      <PageStep label="前へ" href={page > 1 ? href(Math.min(page - 1, lastPage)) : null} />
+      <ul class="page-ranges">
+        {Array.from({ length: lastPage }, (_, i) => i + 1).map((p) => (
+          <li>
+            <a
+              class={p === page ? 'chip active num' : 'chip num'}
+              href={href(p)}
+              aria-current={p === page ? 'page' : undefined}
+            >
+              {range(p)}
+            </a>
+          </li>
+        ))}
+      </ul>
+      <PageStep label="次へ" href={page < lastPage ? href(page + 1) : null} />
     </nav>
   )
 }

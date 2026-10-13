@@ -7,6 +7,7 @@ import {
   LiveSearchScript,
   Pagination,
   Participants,
+  RangePagination,
   RankingList,
   RankingTable,
   SearchField,
@@ -150,6 +151,13 @@ export const SongListPage = ({ songs, q, sort, dir, page, limit, total }: SongLi
       ) : (
         <>
           <p class="result-count small muted">全{total}曲</p>
+          <RangePagination
+            page={page}
+            limit={limit}
+            total={total}
+            href={(p) => songListPath({ q, sort, dir, page: p })}
+            placement="top"
+          />
           <div class="box table-wrap">
             <table class="songs">
               <colgroup>
@@ -166,7 +174,7 @@ export const SongListPage = ({ songs, q, sort, dir, page, limit, total }: SongLi
                   <th>曲名 / アーティスト</th>
                   <SortHeader label="Lv." value="level" q={q} sort={sort} dir={dir} />
                   {PLAYER_COUNTS.map((count) => (
-                    <th>{count}人</th>
+                    <th class="best-head">{count}人</th>
                   ))}
                 </tr>
               </thead>
@@ -200,16 +208,15 @@ export const SongListPage = ({ songs, q, sort, dir, page, limit, total }: SongLi
               </tbody>
             </table>
           </div>
-          {page * limit < total && (
-            <div class="load-more" data-next={songListPath({ q, sort, dir, page: page + 1 })}>
-              <span class="load-more-status" />
-            </div>
-          )}
         </>
       )}
-      <div class="pagination-fallback">
-        <Pagination page={page} limit={limit} total={total} href={(p) => songListPath({ q, sort, dir, page: p })} />
-      </div>
+      <RangePagination
+        page={page}
+        limit={limit}
+        total={total}
+        href={(p) => songListPath({ q, sort, dir, page: p })}
+        placement="bottom"
+      />
     </div>
     <LiveSearchScript />
   </Layout>

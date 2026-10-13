@@ -147,6 +147,9 @@ input[type=search]:focus-visible, select:focus-visible {
 /* 達成が確認できた記録だけ背景を変える。不明・未達成の記録には適用しない */
 .full-combo { background: hsl(var(--full-combo-bg)); }
 .pagination { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px; margin: 24px 0 0; }
+/* 曲一覧の「1-100」のような件数の範囲のボタン。表の上側は表との間を詰める */
+.range-pagination.top { margin: 0 0 12px; }
+.page-ranges { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 0; padding: 0; list-style: none; }
 .back-link { display: inline-block; margin-bottom: 12px; font-size: .875rem; text-decoration: none; }
 
 /* 検索欄（入力で自動検索、×で消す） */
@@ -175,11 +178,13 @@ table.songs { width: 100%; min-width: 1080px; border-collapse: collapse; table-l
   color: hsl(var(--muted-foreground)); white-space: nowrap;
 }
 .songs td { padding: 10px 12px; border-top: 1px solid hsl(var(--border-subtle)); vertical-align: top; }
-/* No.・曲名・Lv.の3列はセル全体が曲別ランキングへのリンク */
+/* 1〜4人の列は縦線で区切る */
+.songs .best-head, .songs .best { border-left: 1px solid hsl(var(--border-subtle)); }
+/* No.・曲名・Lv.の3列はセル全体が曲別ランキングへのリンク。そこにカーソルを合わせたときは行全体をハイライトする */
 .songs .song-cell { position: relative; }
 .cell-link { color: inherit; text-decoration: none; }
 .cell-link::after { content: ""; position: absolute; inset: 0; }
-.songs tr:has(.song-cell:hover) .song-cell { background: hsl(var(--primary) / .07); }
+.songs tr:has(.song-cell:hover) td { background: hsl(var(--primary) / .07); }
 .songs tr:has(.song-cell:hover) .song-title { color: hsl(var(--primary)); }
 .songs .no { font-weight: 600; color: hsl(var(--muted-foreground)); white-space: nowrap; }
 .songs .level { font-weight: 600; white-space: nowrap; }
@@ -192,20 +197,16 @@ table.songs { width: 100%; min-width: 1080px; border-collapse: collapse; table-l
   text-decoration: none; text-overflow: ellipsis; white-space: pre;
 }
 .song-artist { overflow: hidden; min-height: 1lh; margin-top: 2px; font-size: .8125rem; color: hsl(var(--secondary-foreground)); text-overflow: ellipsis; white-space: pre; }
-/* 1位はプレイヤー名を主に、スコアとFCを下に添える */
+/* 1位はスコアを主に、プレイヤー名は小さく薄くする */
 /* 人数のセルは全体がその人数のランキングへのリンク。押せるのはそのセルだけなので、ハイライトもセル単位 */
 .songs .best { position: relative; }
 .songs .best:hover { background: hsl(var(--primary) / .07); }
 .songs .best.full-combo:hover { background: hsl(var(--full-combo-bg)); }
 .best-link { display: block; min-width: 0; color: hsl(var(--foreground)); }
 .best-empty { color: hsl(var(--muted-foreground)); }
-.best-link .participants { font-weight: 700; }
+.best-link .participants { font-size: .8125rem; font-weight: 500; color: hsl(var(--muted-foreground)); }
 .best-score { display: flex; justify-content: flex-end; align-items: center; gap: 4px; margin-top: 2px; font-size: 1rem; font-weight: 600; }
 .best-link:hover .participants, .best-link:hover .best-score { color: hsl(var(--primary)); }
-/* JSが有効なら無限スクロール、無効なら前へ・次へのリンク */
-.load-more { display: none; }
-.js .load-more { display: block; min-height: 40px; padding: 16px 0; color: hsl(var(--muted-foreground)); font-size: .875rem; text-align: center; }
-.js .pagination-fallback { display: none; }
 
 /* 曲別ランキング: 広い画面は4人数を横に並べ、狭い画面はチップのタブ（JSなし）で切り替える */
 .tab-input { position: absolute; opacity: 0; pointer-events: none; }
@@ -270,8 +271,7 @@ table.ranking { width: 100%; border-collapse: collapse; table-layout: fixed; }
   .participants li:not(:last-child)::after { content: none; }
   .participant-name { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .entry-head { flex-wrap: nowrap; min-height: 2rem; margin-bottom: 6px; }
-  .entry .participants, .best-link .participants { font-size: .875rem; }
-  .best-link .participants { font-weight: 600; }
+  .entry .participants { font-size: .875rem; }
   .entry-score { font-size: clamp(1rem, 1.45vw, 1.375rem); }
   .songs td { vertical-align: top; }
   .best-link { display: flex; flex-direction: column; align-items: stretch; }
