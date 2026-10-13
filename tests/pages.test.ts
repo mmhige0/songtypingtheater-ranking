@@ -66,6 +66,50 @@ describe('song list page', () => {
     expect(cell.indexOf('aria-label="フルコンボ"')).toBeLessThan(cell.indexOf('</td>'))
   })
 
+  it('colors a cell with any full combo record, marking only a full combo top', async () => {
+    const solo = (playId: string, i: number, score: number, isFullCombo: boolean, excluded = false) =>
+      insertPlay({
+        playId,
+        songRefId: song,
+        score,
+        participants: [{ id: IDS[i]!, name: `Player${i}`, color: 'R' }],
+        isFullCombo,
+        excluded,
+      })
+    // 1位はFCではないが、2位にFCがある
+    await solo('top', 0, 900, false)
+    await solo('second-fc', 1, 800, true)
+    // 2人の記録のFCは除外済みだけ
+    await insertPlay({
+      playId: 'excluded-fc',
+      songRefId: song,
+      score: 700,
+      participants: [
+        { id: IDS[2]!, name: 'Player2', color: 'R' },
+        { id: IDS[3]!, name: 'Player3', color: 'B' },
+      ],
+      isFullCombo: true,
+      excluded: true,
+    })
+    await insertPlay({
+      playId: 'pair',
+      songRefId: song,
+      score: 600,
+      participants: [
+        { id: IDS[2]!, name: 'Player2', color: 'R' },
+        { id: IDS[3]!, name: 'Player3', color: 'B' },
+      ],
+    })
+    const text = await html('/')
+    const cell = (count: number) => {
+      const start = text.lastIndexOf('<td', text.indexOf(`href="/songs/001?players=${count}"`))
+      return text.slice(start, text.indexOf('</td>', start))
+    }
+    expect(cell(1)).toMatch(/^<td class="best full-combo">/)
+    expect(cell(1)).not.toContain('aria-label="フルコンボ"')
+    expect(cell(2)).toMatch(/^<td class="best">/)
+  })
+
   it('shows a message when nothing matches', async () => {
     expect(await html('/?q=存在しない曲')).toContain('条件に一致する曲がありません')
   })

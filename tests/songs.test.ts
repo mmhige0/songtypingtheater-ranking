@@ -150,10 +150,18 @@ describe('best scores in the song list', () => {
     })
     const [entry] = (await listSongs()).songs
     expect(entry!.bestScores).toEqual({
-      '1': { score: 300, name: 'Alice', isFullCombo: false, participants: [{ name: 'Alice', color: 'R' }], tiedOthers: 0 },
+      '1': {
+        score: 300,
+        name: 'Alice',
+        isFullCombo: false,
+        hasFullCombo: false,
+        participants: [{ name: 'Alice', color: 'R' }],
+        tiedOthers: 0,
+      },
       '2': {
         score: 800,
         isFullCombo: false,
+        hasFullCombo: false,
         participants: [
           { name: 'Alice', color: 'R' },
           { name: 'Carol', color: 'B' },
@@ -185,6 +193,7 @@ describe('best scores in the song list', () => {
     expect((entry!.bestScores as Record<string, unknown>)['2']).toEqual({
       score: 700,
       isFullCombo: true,
+      hasFullCombo: true,
       participants: [
         { name: 'Alice', color: 'B' },
         { name: 'Bob', color: 'Y' },
