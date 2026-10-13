@@ -239,6 +239,14 @@ describe('search engines', () => {
   })
 })
 
+describe('favicon', () => {
+  it('links the favicon from every page', async () => {
+    for (const path of ['/', '/songs/001']) {
+      expect(await html(path), path).toContain('<link rel="icon" href="/favicon.ico"/>')
+    }
+  })
+})
+
 describe('view rate limit', () => {
   it('limits pages and view APIs by CF-Connecting-IP', async () => {
     const keys: string[] = []

@@ -316,6 +316,7 @@ export const Layout = ({ title, children }: { title: string; children: Child }) 
       <meta name="viewport" content="width=device-width, initial-scale=1" />
       <meta name="robots" content={ROBOTS} />
       <title>{title ? `${title} - ${SITE_NAME} ${SITE_SUBTITLE}` : `${SITE_NAME} ${SITE_SUBTITLE}`}</title>
+      <link rel="icon" href="/favicon.ico" />
       <script dangerouslySetInnerHTML={{ __html: THEME_INIT }} />
       <link rel="preconnect" href="https://fonts.googleapis.com" />
       <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
