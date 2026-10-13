@@ -44,7 +44,7 @@ export const Participants = ({ participants }: { participants: Participant[] }) 
   </ul>
 )
 
-// 幅の狭い列に置く順位の一覧。順位とスコアを1行目に、参加者の名前をその下に大きく出す。枠は呼び出し側で付ける
+// 幅の狭い列に置く順位の一覧。順位とスコアを1行目に、参加者の名前をその下に薄く出す。枠は呼び出し側で付ける
 export const RankingList = ({ entries, emptyMessage }: { entries: RankingEntry[]; emptyMessage: string }) =>
   entries.length === 0 ? (
     <p class="panel-empty">{emptyMessage}</p>
@@ -192,28 +192,25 @@ const PageStep = ({ label, href }: { label: string; href: string | null }) =>
     </a>
   )
 
-// 「1-100」「101-200」のように件数の範囲で各ページへ直接飛べるページ送り。表の上下に置き、
+// 「No.1-100」のように各ページへ直接飛べるボタンを並べたページ送り。表示はlabelで決める。表の上下に置き、
 // JSが有効なら結果だけを差し替える（下側は結果の先頭へスクロールする）
 export const RangePagination = ({
   page,
   limit,
   total,
   href,
+  label,
   placement,
 }: {
   page: number
   limit: number
   total: number
   href: (page: number) => string
+  label: (page: number) => string
   placement: 'top' | 'bottom'
 }) => {
   const lastPage = Math.max(1, Math.ceil(total / limit))
   if (lastPage === 1 && page === 1) return null
-  const range = (p: number) => {
-    const start = (p - 1) * limit + 1
-    const end = Math.min(p * limit, total)
-    return start === end ? String(start) : `${start}-${end}`
-  }
   return (
     <nav
       class={`pagination range-pagination ${placement}`}
@@ -229,7 +226,7 @@ export const RangePagination = ({
               href={href(p)}
               aria-current={p === page ? 'page' : undefined}
             >
-              {range(p)}
+              {label(p)}
             </a>
           </li>
         ))}

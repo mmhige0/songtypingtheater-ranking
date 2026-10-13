@@ -147,7 +147,7 @@ input[type=search]:focus-visible, select:focus-visible {
 /* 達成が確認できた記録だけ背景を変える。不明・未達成の記録には適用しない */
 .full-combo { background: hsl(var(--full-combo-bg)); }
 .pagination { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px; margin: 24px 0 0; }
-/* 曲一覧の「1-100」のような件数の範囲のボタン。表の上側は表との間を詰める */
+/* 曲一覧の「No.1-100」のような各ページへのボタン。表の上側は表との間を詰める */
 .range-pagination.top { margin: 0 0 12px; }
 .page-ranges { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 0; padding: 0; list-style: none; }
 .back-link { display: inline-block; margin-bottom: 12px; font-size: .875rem; text-decoration: none; }
@@ -197,15 +197,15 @@ table.songs { width: 100%; min-width: 1080px; border-collapse: collapse; table-l
   text-decoration: none; text-overflow: ellipsis; white-space: pre;
 }
 .song-artist { overflow: hidden; min-height: 1lh; margin-top: 2px; font-size: .8125rem; color: hsl(var(--secondary-foreground)); text-overflow: ellipsis; white-space: pre; }
-/* 1位はスコアを主に、プレイヤー名は小さく薄くする */
+/* 1位はスコアを上に、プレイヤー名をその下に小さく薄く出す */
 /* 人数のセルは全体がその人数のランキングへのリンク。押せるのはそのセルだけなので、ハイライトもセル単位 */
 .songs .best { position: relative; }
 .songs .best:hover { background: hsl(var(--primary) / .07); }
 .songs .best.full-combo:hover { background: hsl(var(--full-combo-bg)); }
 .best-link { display: block; min-width: 0; color: hsl(var(--foreground)); }
 .best-empty { color: hsl(var(--muted-foreground)); }
-.best-link .participants { font-size: .8125rem; font-weight: 500; color: hsl(var(--muted-foreground)); }
-.best-score { display: flex; justify-content: flex-end; align-items: center; gap: 4px; margin-top: 2px; font-size: 1rem; font-weight: 600; }
+.best-link .participants { margin-top: 2px; font-size: .8125rem; font-weight: 500; color: hsl(var(--muted-foreground)); }
+.best-score { display: flex; justify-content: flex-end; align-items: center; gap: 4px; font-size: 1rem; font-weight: 600; }
 .best-link:hover .participants, .best-link:hover .best-score { color: hsl(var(--primary)); }
 
 /* 曲別ランキング: 広い画面は4人数を横に並べ、狭い画面はチップのタブ（JSなし）で切り替える */
@@ -226,7 +226,7 @@ table.songs { width: 100%; min-width: 1080px; border-collapse: collapse; table-l
   .panel { display: block; }
   .panel-title { display: block; }
 }
-/* 順位とスコアを1行目に、名前をその下に大きく出す */
+/* 順位とスコアを1行目に、名前をその下に薄く出す */
 .ranking-list { margin: 0; padding: 0; list-style: none; }
 .entry { padding: 12px 16px; }
 .entry + .entry { border-top: 1px solid hsl(var(--border-subtle)); }
@@ -235,7 +235,7 @@ table.songs { width: 100%; min-width: 1080px; border-collapse: collapse; table-l
 .entry-rank.rank-1 { color: hsl(var(--primary)); }
 .entry-score { display: inline-flex; align-items: center; gap: 6px; font-size: 1.375rem; font-weight: 700; white-space: nowrap; }
 .entry-score .fc { font-size: 1.0625rem; }
-.entry .participants { font-size: 1.0625rem; font-weight: 600; line-height: 1.4; }
+.entry .participants { font-size: 1.0625rem; font-weight: 500; line-height: 1.4; color: hsl(var(--muted-foreground)); }
 .panel-empty { padding: 32px 16px; color: hsl(var(--muted-foreground)); font-size: .875rem; text-align: center; }
 .panel-more { display: block; padding: 12px 16px; border-top: 1px solid hsl(var(--border-subtle)); font-size: .875rem; font-weight: 600; text-decoration: none; }
 .panel-more:hover { background: hsl(var(--primary) / .06); }
@@ -247,7 +247,7 @@ table.ranking { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .ranking td { padding: 14px 16px; border-top: 1px solid hsl(var(--border-subtle)); vertical-align: middle; }
 .ranking .rank { text-align: right; width: 5rem; font-size: 1.25rem; font-weight: 700; white-space: nowrap; }
 .ranking .rank-1 { color: hsl(var(--primary)); }
-.ranking .participants { font-size: 1.125rem; font-weight: 600; line-height: 1.4; }
+.ranking .participants { font-size: 1.125rem; font-weight: 500; line-height: 1.4; color: hsl(var(--muted-foreground)); }
 .ranking .score { width: 12rem; font-size: 1.5rem; font-weight: 700; text-align: right; white-space: nowrap; }
 .ranking .score .fc { margin-right: 6px; font-size: 1.125rem; }
 .ranking th.rank, .ranking th.score { font-size: .75rem; font-weight: 600; }
@@ -275,7 +275,7 @@ table.ranking { width: 100%; border-collapse: collapse; table-layout: fixed; }
   .entry-score { font-size: clamp(1rem, 1.45vw, 1.375rem); }
   .songs td { vertical-align: top; }
   .best-link { display: flex; flex-direction: column; align-items: stretch; }
-  .best-score { margin-top: 6px; }
+  .best-link .participants { margin-top: 6px; }
 }
 
 `

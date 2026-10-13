@@ -56,7 +56,7 @@ pages.get('/', async (c) => {
   const sort = parseSongSort(c.req.query('sort'))
   const dir = parseSortDir(c.req.query('dir'))
   const page = parsePage(c.req.query('page'))
-  const { songs, total } = await searchSongs(c.env.DB, {
+  const { songs, total, pageBounds } = await searchSongs(c.env.DB, {
     q,
     level: null,
     sort,
@@ -78,6 +78,7 @@ pages.get('/', async (c) => {
       page={page}
       limit={SONG_LIST_LIMIT}
       total={total}
+      pageBounds={pageBounds}
     />,
   )
 })
