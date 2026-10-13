@@ -278,7 +278,7 @@ table.ranking { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .ranking td { padding: 14px 16px; border-top: 1px solid hsl(var(--border-subtle)); vertical-align: middle; }
 .ranking .rank { text-align: right; width: 5rem; font-size: 1.25rem; font-weight: 700; white-space: nowrap; }
 .ranking .rank-1 { color: hsl(var(--primary)); }
-.ranking .participants { font-size: 1.125rem; font-weight: 500; line-height: 1.4; color: hsl(var(--muted-foreground)); }
+.ranking .participants { font-size: 1.125rem; font-weight: 600; line-height: 1.4; }
 .ranking .score { width: 12rem; font-size: 1.5rem; font-weight: 700; text-align: right; white-space: nowrap; }
 .ranking .score .fc { margin-right: 6px; font-size: 1.125rem; }
 .ranking th.rank, .ranking th.score { font-size: .75rem; font-weight: 600; }
