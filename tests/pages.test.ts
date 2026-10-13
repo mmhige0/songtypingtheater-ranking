@@ -76,15 +76,16 @@ describe('song list page', () => {
     expect(text).toContain('<table class="songs">')
     expect(text).toContain('全2曲')
     expect(text).not.toContain('<select')
-    expect(text).toContain('href="/?dir=desc"')
+    expect(text).toContain('href="/?dir=asc"')
     expect(text).toContain('href="/?sort=level"')
-    expect(text.indexOf('架空の曲名')).toBeLessThan(text.indexOf('架空の曲2'))
+    expect(text).toContain('aria-sort="descending"')
+    expect(text.indexOf('架空の曲2')).toBeLessThan(text.indexOf('架空の曲名'))
 
-    const desc = await html('/?dir=desc&q=架空')
-    expect(desc.indexOf('架空の曲2')).toBeLessThan(desc.indexOf('架空の曲名'))
-    expect(desc).toContain('aria-sort="descending"')
-    expect(desc).toContain(`href="/?q=${encodeURIComponent('架空')}"`)
-    expect(desc).toContain('<input type="hidden" name="dir" value="desc"/>')
+    const asc = await html('/?dir=asc&q=架空')
+    expect(asc.indexOf('架空の曲名')).toBeLessThan(asc.indexOf('架空の曲2'))
+    expect(asc).toContain('aria-sort="ascending"')
+    expect(asc).toContain(`href="/?q=${encodeURIComponent('架空')}"`)
+    expect(asc).toContain('<input type="hidden" name="dir" value="asc"/>')
   })
 
   it('points the infinite scroll at the next page', async () => {
@@ -124,6 +125,23 @@ describe('song ranking page', () => {
     expect(text).toContain('aria-label="フルコンボ"')
     expect(text).not.toContain('受付')
     expect(text).toContain('記録はまだありません')
+  })
+
+  it('ignores retired full-combo filters on page URLs and keeps all records visible', async () => {
+    await insertPlay({
+      playId: 'non-fc',
+      songRefId: song,
+      score: 500,
+      participants: [{ id: IDS[0]!, name: '通常の記録', color: 'R' }],
+      isFullCombo: false,
+    })
+    for (const path of ['/songs/001?fc=1', '/songs/001/players/1?fc=1']) {
+      const text = await html(path)
+      expect(text).toContain('通常の記録')
+      expect(text).not.toContain('フルコンボのみ')
+      expect(text).not.toContain('name="fc"')
+      expect(text).not.toMatch(/href="[^"]*[?&]fc=/)
+    }
   })
 
   it('escapes player names', async () => {
@@ -218,6 +236,14 @@ describe('search engines', () => {
       expect((await get(path)).headers.get('X-Robots-Tag'), path).toBe('noindex, nofollow, noarchive')
     }
     expect(await html('/')).toContain('<meta name="robots" content="noindex, nofollow, noarchive"/>')
+  })
+})
+
+describe('favicon', () => {
+  it('links the favicon from every page', async () => {
+    for (const path of ['/', '/songs/001']) {
+      expect(await html(path), path).toContain('<link rel="icon" href="/favicon.ico"/>')
+    }
   })
 })
 

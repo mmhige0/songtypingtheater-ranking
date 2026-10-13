@@ -41,17 +41,17 @@ describe('GET /api/v1/songs', () => {
     await insertSong('999', 'Alpha', { level: '3', levelSortValue: 9 })
   })
 
-  it('lists songs in numeric song id order without internal ids', async () => {
+  it('lists songs in descending numeric song id order without internal ids', async () => {
     const json = await listSongs()
-    expect(json.songs.map((s) => s.gameSongId)).toEqual(['002', '010', '999', '1000'])
+    expect(json.songs.map((s) => s.gameSongId)).toEqual(['1000', '999', '010', '002'])
     expect(json).toMatchObject({ page: 1, limit: 50, total: 4 })
     expect(Object.keys(json.songs[0]!).sort()).toEqual(['artist', 'bestScores', 'gameSongId', 'level', 'title'])
   })
 
   it('searches title and artist case-insensitively and filters by level', async () => {
-    expect((await listSongs('?q=SONG')).songs.map((s) => s.gameSongId)).toEqual(['002', '1000'])
+    expect((await listSongs('?q=SONG')).songs.map((s) => s.gameSongId)).toEqual(['1000', '002'])
     expect((await listSongs('?q=ARTIST%20Y')).songs.map((s) => s.gameSongId)).toEqual(['010'])
-    expect((await listSongs('?level=3')).songs.map((s) => s.gameSongId)).toEqual(['999', '1000'])
+    expect((await listSongs('?level=3')).songs.map((s) => s.gameSongId)).toEqual(['1000', '999'])
     expect((await listSongs('?level=%3F')).songs.map((s) => s.gameSongId)).toEqual(['002'])
   })
 
@@ -59,13 +59,21 @@ describe('GET /api/v1/songs', () => {
     expect((await listSongs('?q=99')).songs.map((s) => s.gameSongId)).toEqual(['999'])
   })
 
-  it('sorts by level with unknown levels last', async () => {
-    expect((await listSongs('?sort=level')).songs.map((s) => s.gameSongId)).toEqual(['999', '1000', '010', '002'])
+  it('sorts by level in ascending order with unknown levels last', async () => {
+    expect((await listSongs('?sort=level&dir=asc')).songs.map((s) => s.gameSongId)).toEqual([
+      '999',
+      '1000',
+      '010',
+      '002',
+    ])
   })
 
-  it('sorts in descending order, keeping unknown levels last and song ids ascending within a level', async () => {
-    expect((await listSongs('?dir=desc')).songs.map((s) => s.gameSongId)).toEqual(['1000', '999', '010', '002'])
-    expect((await listSongs('?sort=level&dir=desc')).songs.map((s) => s.gameSongId)).toEqual([
+  it('sorts in ascending order when requested', async () => {
+    expect((await listSongs('?dir=asc')).songs.map((s) => s.gameSongId)).toEqual(['002', '010', '999', '1000'])
+  })
+
+  it('sorts by level in descending order by default, keeping unknown levels last and song ids ascending within a level', async () => {
+    expect((await listSongs('?sort=level')).songs.map((s) => s.gameSongId)).toEqual([
       '010',
       '999',
       '1000',
@@ -75,7 +83,7 @@ describe('GET /api/v1/songs', () => {
 
   it('pages through the list', async () => {
     const json = await listSongs('?limit=3&page=2')
-    expect(json.songs.map((s) => s.gameSongId)).toEqual(['1000'])
+    expect(json.songs.map((s) => s.gameSongId)).toEqual(['002'])
     expect(json).toMatchObject({ page: 2, limit: 3, total: 4 })
   })
 
@@ -121,8 +129,8 @@ describe('GET /api/v1/songs', () => {
 
   it('orders song ids with the same number by their text', async () => {
     await insertSong('0010', 'Padded')
-    expect((await listSongs()).songs.map((s) => s.gameSongId)).toEqual(['002', '0010', '010', '999', '1000'])
-    expect((await listSongs('?dir=desc')).songs.map((s) => s.gameSongId)).toEqual(['1000', '999', '010', '0010', '002'])
+    expect((await listSongs()).songs.map((s) => s.gameSongId)).toEqual(['1000', '999', '010', '0010', '002'])
+    expect((await listSongs('?dir=asc')).songs.map((s) => s.gameSongId)).toEqual(['002', '0010', '010', '999', '1000'])
   })
 })
 

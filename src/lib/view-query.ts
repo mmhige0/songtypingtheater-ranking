@@ -76,7 +76,7 @@ export type SortDir = (typeof SORT_DIRS)[number]
 
 export const parseSortDir = (value: string | undefined): SortDir => {
   const raw = optional(value)
-  if (raw === undefined) return 'asc'
+  if (raw === undefined) return 'desc'
   if (!SORT_DIRS.includes(raw as SortDir)) throw invalidRequest('dirはascまたはdescにしてください')
   return raw as SortDir
 }
