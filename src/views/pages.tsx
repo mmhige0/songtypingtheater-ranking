@@ -1,4 +1,5 @@
-import type { BestScore, BestScores, RankingPage } from '../lib/ranking'
+import type { BestScore, BestScores, RankingPage, RecentBest } from '../lib/ranking'
+import type { Child } from 'hono/jsx'
 import type { SongSummary } from '../lib/song-query'
 import {
   LEVEL_FILTER_MAX,
@@ -10,6 +11,7 @@ import {
   type SortDir,
 } from '../lib/view-query'
 import {
+  formatReceivedAt,
   formatScore,
   FullComboMark,
   LiveSearchScript,
@@ -21,10 +23,13 @@ import {
   SearchField,
   toQuery,
 } from './components'
-import { Layout } from './layout'
+import { Icon, Layout } from './layout'
+import { LDC_ORIGIN, useSite } from './site'
 
 // 1ページ目はpageを付けない
 const pageParam = (page: number) => (page === 1 ? null : page)
+
+export const SONG_LIST_PATH = '/songs'
 
 const songPath = (gameSongId: string) => `/songs/${encodeURIComponent(gameSongId)}`
 
@@ -65,6 +70,124 @@ const RankingFilters = ({
   </form>
 )
 
+// ---- トップ（サイト全体の入口。LyricDataCreatorの入口ページを引き継ぐ） ----
+
+const TopCard = ({ href, title, accent = false, children }: { href: string; title: string; accent?: boolean; children: Child }) => (
+  <a class="top-card" href={href}>
+    <span class={accent ? 'top-card-icon accent' : 'top-card-icon'}>
+      <Icon>{children}</Icon>
+    </span>
+    <h2>{title}</h2>
+  </a>
+)
+
+// 「3分前」等の表示はJSで書き換える。JSが無効なら日本時間の日時のまま
+const RELATIVE_TIME_SCRIPT = `(function(){var now=Date.now();
+document.querySelectorAll('time[data-relative]').forEach(function(el){var s=Math.max(0,(now-Date.parse(el.getAttribute('datetime')))/1000);
+var t=s<60?'たった今':s<3600?Math.floor(s/60)+'分前':s<86400?Math.floor(s/3600)+'時間前':s<86400*30?Math.floor(s/86400)+'日前':null;
+if(t)el.textContent=t})})()`
+
+const RecentBestRow = ({ best, rankingOrigin }: { best: RecentBest; rankingOrigin: string }) => (
+  <li class={best.isFullCombo === true ? 'recent full-combo' : 'recent'}>
+    <a class="recent-row" href={`${rankingOrigin}${songPath(best.gameSongId)}${toQuery({ players: best.playerCount })}`}>
+      <span class={best.rank === 1 ? 'recent-rank rank-1 num' : 'recent-rank num'}>{best.rank}位</span>
+      <span class="recent-song" title={best.title}>
+        {best.title}
+      </span>
+      <span class="recent-who">
+        <span class="recent-players small">{best.playerCount}人</span>
+        <Participants participants={best.participants} />
+      </span>
+      <span class="recent-score num">
+        {best.isFullCombo === true && <FullComboMark />}
+        {formatScore(best.score)}
+      </span>
+      <time
+        class="recent-time num"
+        datetime={best.receivedAt}
+        title={formatReceivedAt(best.receivedAt)}
+        data-relative=""
+      >
+        {formatReceivedAt(best.receivedAt)}
+      </time>
+    </a>
+  </li>
+)
+
+const CREDIT_GROUPS = [
+  {
+    label: '素材提供サイト',
+    links: [
+      { name: 'イラストストック', href: 'https://illust-stock.com/' },
+      { name: '効果音ラボ', href: 'https://soundeffect-lab.info/' },
+    ],
+  },
+  { label: 'Special Thanks', links: [{ name: 'YTyping', href: 'https://ytyping.net/' }] },
+]
+
+const Credits = () => (
+  <section class="credits" aria-labelledby="credits-title">
+    <h2 id="credits-title">クレジット</h2>
+    {CREDIT_GROUPS.map((group) => (
+      <div class="credits-group">
+        <div class="credits-label">{group.label}</div>
+        <ul>
+          {group.links.map((link) => (
+            <li>
+              <a href={link.href} target="_blank" rel="noopener noreferrer">
+                {link.name}
+              </a>
+              &nbsp;様
+            </li>
+          ))}
+        </ul>
+      </div>
+    ))}
+  </section>
+)
+
+export const TopPage = ({ recentBests }: { recentBests: RecentBest[] }) => {
+  const site = useSite()
+  return (
+    <Layout title="" subtitle={false}>
+      <div class="top">
+        <nav class="top-cards" aria-label="メニュー">
+          {/* lucideのEdit3・Keyboard・Trophy */}
+          <TopCard href={`${LDC_ORIGIN}/editor`} title="歌詞データ作成">
+            <path d="M12 20h9" />
+            <path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z" />
+          </TopCard>
+          <TopCard href={`${LDC_ORIGIN}/songs`} title="練習" accent>
+            <path d="M10 8h.01M12 12h.01M14 8h.01M16 12h.01M18 8h.01M6 8h.01M7 16h10M8 12h.01" />
+            <rect width="20" height="16" x="2" y="4" rx="2" />
+          </TopCard>
+          <TopCard href={`${site.ranking}${SONG_LIST_PATH}`} title="ランキング">
+            <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18M4 22h16" />
+            <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" />
+            <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" />
+          </TopCard>
+        </nav>
+
+        <section class="top-section" aria-labelledby="recent-title">
+          <h2 id="recent-title">新着記録</h2>
+          {recentBests.length === 0 ? (
+            <p class="empty-box">記録はまだありません</p>
+          ) : (
+            <ol class="box recent-list">
+              {recentBests.map((best) => (
+                <RecentBestRow best={best} rankingOrigin={site.ranking} />
+              ))}
+            </ol>
+          )}
+        </section>
+
+        <Credits />
+      </div>
+      <script dangerouslySetInnerHTML={{ __html: RELATIVE_TIME_SCRIPT }} />
+    </Layout>
+  )
+}
+
 // ---- ランキング（曲一覧） ----
 
 export type SongListProps = {
@@ -92,7 +215,7 @@ const songListPath = ({
   dir: SortDir
   page?: number
 }) =>
-  `/${toQuery({
+  `${SONG_LIST_PATH}${toQuery({
     q,
     levelMin: levelRange === null || levelRange.min === LEVEL_FILTER_MIN ? null : levelRange.min,
     levelMax: levelRange === null || levelRange.max === LEVEL_FILTER_MAX ? null : levelRange.max,
@@ -188,7 +311,7 @@ const BestCell = ({ song, count, best }: { song: SongSummary; count: PlayerCount
 export const SongListPage = ({ songs, q, levelRange, sort, dir, page, limit, total }: SongListProps) => (
   <Layout title="">
     <h1 class="page-title">ランキング</h1>
-    <form id="song-search" class="box filters" method="get" action="/" role="search" data-live="song-results">
+    <form id="song-search" class="box filters" method="get" action={SONG_LIST_PATH} role="search" data-live="song-results">
       <span id="sort-state" data-sync>
         {sort !== 'id' && <input type="hidden" name="sort" value={sort} />}
         {dir !== 'desc' && <input type="hidden" name="dir" value={dir} />}
@@ -400,7 +523,7 @@ export const ErrorPage = ({ title, message }: { title: string; message: string }
       <div>
         <h1 class="page-title">{title}</h1>
         <p>{message}</p>
-        <a class="button button-outline" href="/">
+        <a class="button button-outline" href={SONG_LIST_PATH}>
           ランキングへ戻る
         </a>
       </div>

@@ -1,3 +1,7 @@
 # ローカル開発用。.dev.vars にコピーして値を設定する（.dev.vars はコミットしない）
 # 本番は `wrangler secret put ADMIN_API_KEY` で設定する
 ADMIN_API_KEY=
+# 同じ値にすると1つのホストで`/`にトップ、`/songs`以下にランキングを出す
+# （wrangler devはリクエストのホストを書き換えるため、ローカルではホストで分けられない）
+TOP_ORIGIN=http://localhost:8787
+RANKING_ORIGIN=http://localhost:8787

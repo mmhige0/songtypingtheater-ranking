@@ -4,7 +4,8 @@ import type { Child } from 'hono/jsx'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { ApiError } from '../lib/http'
 import { limitByIp } from '../lib/rate-limit'
-import { fetchBestScores, fetchRankings } from '../lib/ranking'
+import { isTopHost } from '../lib/site-host'
+import { fetchBestScores, fetchRankings, fetchRecentBests } from '../lib/ranking'
 import { findApprovedSong, searchSongs } from '../lib/song-query'
 import {
   PLAYER_COUNTS,
@@ -15,19 +16,29 @@ import {
   parseSongSort,
   parseSortDir,
 } from '../lib/view-query'
-import { ErrorPage, PlayerRankingPage, SongListPage, SongRankingPage } from '../views/pages'
+import {
+  ErrorPage,
+  PlayerRankingPage,
+  SONG_LIST_PATH,
+  SongListPage,
+  SongRankingPage,
+  TopPage,
+} from '../views/pages'
+import { SiteContext } from '../views/site'
 
 // fetchBestScoresは曲IDを1つずつバインドするため、D1の上限（1クエリ100個）を超えないこと
 const SONG_LIST_LIMIT = 100
 // 曲別ランキングで人数ごとに表示する件数。超えた分は人数別ページで見る
 const SONG_RANKING_LIMIT = 10
 const PLAYER_RANKING_LIMIT = 50
+// トップに表示する新着記録の件数
+const RECENT_BEST_LIMIT = 10
 
 const render = (c: Context, page: Child, status: ContentfulStatusCode = 200) =>
   c.html(
     <>
       {raw('<!DOCTYPE html>')}
-      {page}
+      <SiteContext.Provider value={{ top: c.env.TOP_ORIGIN, ranking: c.env.RANKING_ORIGIN }}>{page}</SiteContext.Provider>
     </>,
     status,
   )
@@ -52,7 +63,16 @@ pages.onError((error, c) => {
   return render(c, <ErrorPage title={title} message={error.message} />, error.status)
 })
 
+// トップのホストではトップを出す。それ以外のホストの`/`は曲一覧へ転送する
+// （曲一覧が`/`にあった頃のクエリ付きURLも同じクエリのまま引き継ぐ）
 pages.get('/', async (c) => {
+  const url = new URL(c.req.url)
+  if (!isTopHost(c.env, url)) return c.redirect(`${SONG_LIST_PATH}${url.search}`, 301)
+  const recentBests = await fetchRecentBests(c.env.DB, RECENT_BEST_LIMIT)
+  return render(c, <TopPage recentBests={recentBests} />)
+})
+
+pages.get(SONG_LIST_PATH, async (c) => {
   const q = parseSearchText(c.req.query('q'), 'q')
   const levelRange = parseLevelRange(c.req.query('levelMin'), c.req.query('levelMax'))
   const sort = parseSongSort(c.req.query('sort'))

@@ -66,6 +66,8 @@ export const plays = sqliteTable(
   (t) => [
     index('play_team_best_idx').on(t.songRefId, t.playerCount, t.teamKey, t.score),
     index('play_ranking_idx').on(t.songRefId, t.playerCount, t.score),
+    // トップの新着記録を新しい順に読み、件数がそろった時点で止める
+    index('play_received_at_idx').on(t.receivedAt),
     check('play_score_range', sql`${t.score} BETWEEN 0 AND 2147483647`),
     check('play_player_count_range', sql`${t.playerCount} BETWEEN 1 AND 4`),
     check('play_is_full_combo_bool', sql`${t.isFullCombo} IN (0, 1)`),

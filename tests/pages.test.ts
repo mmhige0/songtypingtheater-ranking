@@ -9,6 +9,10 @@ const IDS = Array.from({ length: 12 }, (_, i) => `00000000-0000-4000-8000-${Stri
 
 const get = (path: string, testEnv: Env = env) => app.request(path, {}, testEnv)
 
+// トップのホスト（vitest.config.tsで本番の値に固定）。相対パスのリクエストはlocalhost＝ランキング側になる
+const TOP = 'https://kayomodoki.com/'
+const RANKING = 'https://ranking.kayomodoki.com'
+
 const html = async (path: string, status = 200) => {
   const res = await get(path)
   expect(res.status, path).toBe(status)
@@ -26,6 +30,140 @@ beforeEach(async () => {
   await insertPlayers(...IDS)
 })
 
+describe('top page', () => {
+  const solo = (i: number, name = `Solo${i}`) => [{ id: IDS[i]!, name, color: 'R' as const }]
+  const recentRows = async () => {
+    const text = await html(TOP)
+    const start = text.indexOf('id="recent-title"')
+    return text.slice(start, text.indexOf('id="credits-title"'))
+  }
+  const rowCount = (text: string) => text.match(/class="recent-row"/g)?.length ?? 0
+
+  it('links to the editor, practice and the ranking, with credits and without the subtitle', async () => {
+    const text = await html(TOP)
+    expect(text).toContain('<title>Song Typing Theater</title>')
+    expect(text).not.toContain('class="brand-sub"')
+    expect(text).toContain('href="https://ldc.kayomodoki.com/editor"')
+    expect(text).toContain('href="https://ldc.kayomodoki.com/songs"')
+    expect(text).toContain(`href="${RANKING}/songs"`)
+    expect(text).toContain('クレジット')
+    expect(text).toContain('href="https://ytyping.net/" target="_blank" rel="noopener noreferrer"')
+    expect(text).toContain('記録はまだありません')
+  })
+
+  it('links the site name on ranking pages to the top', async () => {
+    const text = await html('/songs')
+    expect(text).toContain('<a class="brand" href="https://kayomodoki.com/">')
+    expect(text).toContain('class="brand-sub"')
+  })
+
+  it('shows each team best once, newest first, with the current rank', async () => {
+    const song2 = await insertSong('002', '別の曲')
+    await insertPlay({ playId: 'a1', songRefId: song, score: 100, participants: solo(0, 'Alice'), receivedAt: at(1) })
+    await insertPlay({ playId: 'a2', songRefId: song, score: 300, participants: solo(0, 'Alice'), receivedAt: at(2) })
+    // 自己ベストに届かない記録は出さず、前の自己ベストを出したまま
+    await insertPlay({ playId: 'a3', songRefId: song, score: 200, participants: solo(0, 'Alice'), receivedAt: at(5) })
+    await insertPlay({ playId: 'b1', songRefId: song, score: 400, participants: solo(1, 'Bob'), receivedAt: at(3) })
+    await insertPlay({
+      playId: 'c1',
+      songRefId: song2,
+      score: 50,
+      participants: [
+        { id: IDS[0]!, name: 'Alice', color: 'R' },
+        { id: IDS[1]!, name: 'Bob', color: 'B' },
+      ],
+      isFullCombo: true,
+      receivedAt: at(4),
+    })
+    const rows = await recentRows()
+    expect(rowCount(rows)).toBe(3)
+    // c1（別の曲・2人） → b1 → a2 の順。行はランキング側の曲・人数のページへのリンク
+    const c1 = rows.indexOf(`href="${RANKING}/songs/002?players=2"`)
+    const b1 = rows.indexOf('>400<')
+    const a2 = rows.indexOf('>300<')
+    expect(c1).toBeGreaterThan(-1)
+    expect(c1).toBeLessThan(b1)
+    expect(b1).toBeLessThan(a2)
+    expect(rows).toContain(`href="${RANKING}/songs/001?players=1"`)
+    expect(rows).not.toContain('>100<')
+    expect(rows).not.toContain('>200<')
+    expect(rows).toContain('class="recent-rank rank-1 num">1位')
+    expect(rows).toContain('class="recent-rank num">2位')
+    expect(rows).toContain('class="recent full-combo"')
+    // JSがなくても日本時間の日時を出す（JSが有効なら「3分前」等に書き換える）
+    expect(rows).toContain('datetime="2026-10-10T13:00:04.000Z"')
+    expect(rows).toContain('>2026/10/10 22:00</time>')
+  })
+
+  it('treats a tied score with a first full combo as the new best', async () => {
+    await insertPlay({ playId: 'a1', songRefId: song, score: 100, participants: solo(0), receivedAt: at(1) })
+    await insertPlay({ playId: 'a2', songRefId: song, score: 100, participants: solo(0), isFullCombo: true, receivedAt: at(2) })
+    // FCでない同点は自己ベストにならない
+    await insertPlay({ playId: 'a3', songRefId: song, score: 100, participants: solo(0), receivedAt: at(3) })
+    const rows = await recentRows()
+    expect(rowCount(rows)).toBe(1)
+    expect(rows).toContain('class="recent full-combo"')
+  })
+
+  it('skips excluded and legacy records and plays tied with a legacy best', async () => {
+    await insertPlay({
+      playId: 'legacy',
+      songRefId: song,
+      score: 500,
+      participants: solo(0, 'Legacy'),
+      isFullCombo: null,
+      hostPlayerId: null,
+    })
+    await insertPlay({ playId: 'tied', songRefId: song, score: 500, participants: solo(0, 'Legacy'), receivedAt: at(1) })
+    await insertPlay({ playId: 'x', songRefId: song, score: 900, participants: solo(1, 'Excluded'), excluded: true })
+    await insertPlay({ playId: 'y', songRefId: song, score: 10, participants: solo(1, 'Excluded'), receivedAt: at(2) })
+    const rows = await recentRows()
+    expect(rowCount(rows)).toBe(1)
+    expect(rows).not.toContain('Legacy')
+    // 除外済みの記録は自己ベストにも順位にも数えない
+    expect(rows).toContain('Excluded')
+    expect(rows).toContain('class="recent-rank num">2位')
+  })
+
+  it('shows at most 10 records', async () => {
+    for (let i = 0; i < 12; i++) {
+      await insertPlay({ playId: `p${i}`, songRefId: song, score: i, participants: solo(i), receivedAt: at(i) })
+    }
+    const rows = await recentRows()
+    expect(rowCount(rows)).toBe(10)
+    expect(rows).toContain('Solo11')
+    expect(rows).not.toContain('Solo1<')
+  })
+
+  it('redirects other paths on the top host to the ranking host', async () => {
+    for (const path of ['songs', 'songs/001?players=2', 'api/v1/songs']) {
+      const res = await get(`${TOP}${path}`)
+      expect(res.status, path).toBe(301)
+      expect(res.headers.get('Location')).toBe(`${RANKING}/${path}`)
+    }
+    const post = await app.request(`${TOP}api/v1/plays`, { method: 'POST' }, env)
+    expect(post.status).toBe(404)
+  })
+
+  it('serves both the top and the ranking on one host when the origins are the same', async () => {
+    const single = { ...env, TOP_ORIGIN: 'http://localhost:8787', RANKING_ORIGIN: 'http://localhost:8787' }
+    const top = await get('/', single)
+    expect(top.status).toBe(200)
+    const text = await top.text()
+    expect(text).toContain('id="recent-title"')
+    expect(text).toContain('href="http://localhost:8787/songs"')
+    expect((await get('/songs', single)).status).toBe(200)
+  })
+
+  it('redirects the ranking root to the song list with the same query', async () => {
+    for (const query of ['', '?q=abc', '?sort=level&dir=asc', '?page=2']) {
+      const res = await get(`/${query}`)
+      expect(res.status, query).toBe(301)
+      expect(res.headers.get('Location')).toBe(`/songs${query}`)
+    }
+  })
+})
+
 describe('song list page', () => {
   it('shows songs with best scores and the solo top player', async () => {
     await insertPlay({
@@ -34,7 +172,7 @@ describe('song list page', () => {
       score: 123456,
       participants: [{ id: IDS[0]!, name: 'ソロの人', color: 'R' }],
     })
-    const text = await html('/')
+    const text = await html('/songs')
     expect(text).toContain('架空の曲名')
     expect(text).toContain('123,456')
     expect(text).toContain('ソロの人')
@@ -59,7 +197,7 @@ describe('song list page', () => {
       ],
       isFullCombo: true,
     })
-    const text = await html('/')
+    const text = await html('/songs')
     const cell = text.slice(text.indexOf('href="/songs/001?players=4"'))
     expect(cell.indexOf('ひとりめ')).toBeLessThan(cell.indexOf('ふたりめ'))
     expect(cell.indexOf('さんにんめ')).toBeLessThan(cell.indexOf('よにんめ'))
@@ -67,7 +205,7 @@ describe('song list page', () => {
   })
 
   it('shows a message when nothing matches', async () => {
-    expect(await html('/?q=存在しない曲')).toContain('条件に一致する曲がありません')
+    expect(await html('/songs?q=存在しない曲')).toContain('条件に一致する曲がありません')
   })
 
   it('filters songs by level range including + and - levels', async () => {
@@ -75,7 +213,7 @@ describe('song list page', () => {
     await insertSong('003', 'レベル7-の曲', { level: '7-', levelSortValue: 20 })
     await insertSong('004', 'レベル未設定の曲', { level: '?' })
     await insertSong('005', 'レベル7+の曲', { level: '7+', levelSortValue: 22 })
-    for (const path of ['/?levelMin=5&levelMax=7', '/?levelMin=7&levelMax=5']) {
+    for (const path of ['/songs?levelMin=5&levelMax=7', '/songs?levelMin=7&levelMax=5']) {
       const text = await html(path)
       expect(text, path).toContain('架空の曲名')
       expect(text, path).toContain('レベル7-の曲')
@@ -84,35 +222,35 @@ describe('song list page', () => {
       expect(text, path).not.toContain('レベル未設定の曲')
       expect(text, path).toContain('全3曲')
       // 並べ替え・ページ送り・検索のクリアでも範囲を保つ
-      expect(text, path).toContain('href="/?levelMin=5&amp;levelMax=7&amp;dir=asc"')
-      expect(text, path).toContain('href="/?levelMin=5&amp;levelMax=7&amp;sort=level"')
+      expect(text, path).toContain('href="/songs?levelMin=5&amp;levelMax=7&amp;dir=asc"')
+      expect(text, path).toContain('href="/songs?levelMin=5&amp;levelMax=7&amp;sort=level"')
     }
     // 全範囲は絞り込まず、レベル未設定の曲も出す。既定値はリンクに付けない
-    const all = await html('/?levelMin=1&levelMax=10')
+    const all = await html('/songs?levelMin=1&levelMax=10')
     expect(all).toContain('レベル未設定の曲')
-    expect(all).toContain('href="/?dir=asc"')
-    const upper = await html('/?levelMax=3')
+    expect(all).toContain('href="/songs?dir=asc"')
+    const upper = await html('/songs?levelMax=3')
     expect(upper).toContain('レベル3の曲')
     expect(upper).not.toContain('架空の曲名')
-    expect(upper).toContain('href="/?levelMax=3&amp;dir=asc"')
-    expect(await html('/?levelMin=8')).toContain('条件に一致する曲がありません')
+    expect(upper).toContain('href="/songs?levelMax=3&amp;dir=asc"')
+    expect(await html('/songs?levelMin=8')).toContain('条件に一致する曲がありません')
   })
 
   it('renders a table whose sort headers toggle the direction', async () => {
     await insertSong('002', '架空の曲2', { level: '3', levelSortValue: 9 })
-    const text = await html('/')
+    const text = await html('/songs')
     expect(text).toContain('<table class="songs">')
     expect(text).toContain('全2曲')
     expect(text).not.toContain('<select')
-    expect(text).toContain('href="/?dir=asc"')
-    expect(text).toContain('href="/?sort=level"')
+    expect(text).toContain('href="/songs?dir=asc"')
+    expect(text).toContain('href="/songs?sort=level"')
     expect(text).toContain('aria-sort="descending"')
     expect(text.indexOf('架空の曲2')).toBeLessThan(text.indexOf('架空の曲名'))
 
-    const asc = await html('/?dir=asc&q=架空')
+    const asc = await html('/songs?dir=asc&q=架空')
     expect(asc.indexOf('架空の曲名')).toBeLessThan(asc.indexOf('架空の曲2'))
     expect(asc).toContain('aria-sort="ascending"')
-    expect(asc).toContain(`href="/?q=${encodeURIComponent('架空')}"`)
+    expect(asc).toContain(`href="/songs?q=${encodeURIComponent('架空')}"`)
     expect(asc).toContain('<input type="hidden" name="dir" value="asc"/>')
   })
 
@@ -124,14 +262,14 @@ describe('song list page', () => {
         ).bind(String(100 + i), `曲${i}`, at(0), at(0)),
       ),
     )
-    const first = await html('/?sort=level')
+    const first = await html('/songs?sort=level')
     expect(first).toContain('全101曲')
-    expect(first).toContain('<a class="chip active num" href="/?sort=level" aria-current="page">1</a>')
-    expect(first).toContain('<a class="chip num" href="/?sort=level&amp;page=2">2</a>')
+    expect(first).toContain('<a class="chip active num" href="/songs?sort=level" aria-current="page">1</a>')
+    expect(first).toContain('<a class="chip num" href="/songs?sort=level&amp;page=2">2</a>')
     expect(first).toContain('data-live-nav="top"')
     expect(first).toContain('data-live-nav="bottom"')
-    const second = await html('/?sort=level&page=2')
-    expect(second).toContain('<a class="chip active num" href="/?sort=level&amp;page=2" aria-current="page">2</a>')
+    const second = await html('/songs?sort=level&page=2')
+    expect(second).toContain('<a class="chip active num" href="/songs?sort=level&amp;page=2" aria-current="page">2</a>')
     expect(second).toContain('<span class="button button-outline" aria-disabled="true">次へ</span>')
   })
 })
@@ -256,26 +394,26 @@ describe('page errors', () => {
   })
 
   it('returns HTML for invalid queries', async () => {
-    expect(await html('/?sort=title', 400)).toContain('sortはidまたはlevelにしてください')
-    expect(await html('/?dir=up', 400)).toContain('dirはascまたはdescにしてください')
-    expect(await html('/?levelMin=0', 400)).toContain('levelMinは1〜10の整数にしてください')
-    expect(await html('/?levelMax=11', 400)).toContain('levelMaxは1〜10の整数にしてください')
-    expect(await html('/?levelMin=5.5', 400)).toContain('levelMinは1〜10の整数にしてください')
+    expect(await html('/songs?sort=title', 400)).toContain('sortはidまたはlevelにしてください')
+    expect(await html('/songs?dir=up', 400)).toContain('dirはascまたはdescにしてください')
+    expect(await html('/songs?levelMin=0', 400)).toContain('levelMinは1〜10の整数にしてください')
+    expect(await html('/songs?levelMax=11', 400)).toContain('levelMaxは1〜10の整数にしてください')
+    expect(await html('/songs?levelMin=5.5', 400)).toContain('levelMinは1〜10の整数にしてください')
   })
 })
 
 describe('search engines', () => {
   it('marks pages, API responses and errors as noindex', async () => {
-    for (const path of ['/', '/songs/001', '/songs/999', '/no-such-page', '/api/v1/songs', '/api/v1/no-such-api']) {
+    for (const path of [TOP, `${TOP}songs`, '/', '/songs/001', '/songs/999', '/no-such-page', '/api/v1/songs', '/api/v1/no-such-api']) {
       expect((await get(path)).headers.get('X-Robots-Tag'), path).toBe('noindex, nofollow, noarchive')
     }
-    expect(await html('/')).toContain('<meta name="robots" content="noindex, nofollow, noarchive"/>')
+    expect(await html('/songs')).toContain('<meta name="robots" content="noindex, nofollow, noarchive"/>')
   })
 })
 
 describe('favicon', () => {
   it('links the favicon from every page', async () => {
-    for (const path of ['/', '/songs/001']) {
+    for (const path of [TOP, '/songs', '/songs/001']) {
       expect(await html(path), path).toContain('<link rel="icon" href="/favicon.ico"/>')
     }
   })

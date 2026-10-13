@@ -10,7 +10,13 @@ export default defineConfig(async () => {
       cloudflareTest({
         wrangler: { configPath: './wrangler.jsonc' },
         miniflare: {
-          bindings: { TEST_MIGRATIONS: migrations, ADMIN_API_KEY: 'test-admin-key' },
+          // .dev.varsの値に左右されないよう、トップとランキングのオリジンは本番の値に固定する
+          bindings: {
+            TEST_MIGRATIONS: migrations,
+            ADMIN_API_KEY: 'test-admin-key',
+            TOP_ORIGIN: 'https://kayomodoki.com',
+            RANKING_ORIGIN: 'https://ranking.kayomodoki.com',
+          },
           // 機能テストが同じIP・プレイヤーで多数送信するため上限を緩める。429の動作はtests/rate-limit.test.tsで確認
           ratelimits: Object.fromEntries(
             ['PLAYS_IP_LIMITER', 'PLAYS_PLAYER_LIMITER', 'INSTALLATIONS_IP_LIMITER', 'VIEW_IP_LIMITER'].map((name, i) => [
