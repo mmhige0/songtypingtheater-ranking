@@ -14,7 +14,7 @@ Cloudflareの無料プランで構築する。他構成との比較は行わず�
 | DB | Cloudflare D1（SQLite系） |
 | ORM・マイグレーション | Drizzle ORM。drizzle-kitで生成したSQLを`wrangler d1 migrations`で適用 |
 | 送信回数制限 | Workers Rate Limiting（バインディング）。使えない場合はD1の固定窓カウンター |
-| バックアップ | D1 Time Travel（7日）＋管理者の手動`wrangler d1 export` |
+| バックアップ | D1 Time Travel（7日）＋非公開の専用GitHub Actionsによる日次SQLバックアップ（90日artifact保存） |
 | 言語・テスト | TypeScript（strict）、Vitest＋`@cloudflare/vitest-plugin`（旧`@cloudflare/vitest-pool-workers`） |
 | 設定・型 | `wrangler.jsonc`。Workerの型は`wrangler types`で生成（`worker-configuration.d.ts`はコミットせず、型チェック時に生成） |
 | ドメイン | `ranking.kayomodoki.com`（Workersのカスタムドメイン）。移行期間中は`songtypingtheater-ranking.songtypingtheater-ranking.workers.dev`も受け付ける（`workers_dev: true`）。ゲームの送信先が切り替わり古いURLへの送信がなくなったら`workers_dev: false`で閉じる |
@@ -83,12 +83,12 @@ API仕様は重複JSONキーの検出を求める。`JSON.parse`・`c.req.json()
 
 ## バックアップ
 
-- D1 Time Travelで過去7日以内（無料プラン）の任意時点へ復元できる。復元はDBを上書きするが、返されるブックマークで取り消せる。
-- 7日より前に戻すため、管理者が手動で`wrangler d1 export <DB名> --remote`を実行し、SQLファイルを非公開の場所に保存する。目安は週1回と、移行の前後・大きな変更の前。
-- D1のエクスポートはwrangler CLIからのみ実行でき、Worker内からは実行できない。このためCron TriggerとR2による自動エクスポートは採用しない（R2有効化時の支払い方法登録も不要になる）。
-- エクスポート中は他のDBリクエストが待たされる。想定規模では短時間の見込みだが、アクセスの少ない時間帯に行う。
-- エクスポートはプレイヤー名・成績を含むため、リポジトリ外に保存する。Git・公開リポジトリのGitHub Actionsの成果物・ログには置かない。
-- 復元手順は実装後に一度実施して確認する。
+- D1 Time Travelは常時有効。無料プランでは直近7日以内の日時へ現在のDB全体を巻き戻せる。誤削除・誤更新の復旧の第一候補とし、取り消し用bookmarkを保存する。
+- [非公開の専用リポジトリ](https://github.com/mmhige0/songtypingtheater-ranking-backups)で毎日04:23 JSTにSQLを取得し、90日間artifactとして保存する。GitHub scheduleの遅延・欠落があるため成功状況を確認し、大きな変更の前には手動実行する。
+- 日次の復元検証はActions内の一時SQLiteで行い、D1への書き込みはしない。gzip圧縮するが暗号化キーは使わない。SQLをGitへコミットせず、専用リポジトリは非公開を維持する。
+- 7日より前・別DBへの復旧ではartifactを新規の空D1へインポートする。本番DBへ直接流し込まず、スキーマ・表示を確認後に本番Workerの接続先を切り替える。日次バックアップの接続先も更新する。SQLインポート前にD1の無料枠使用量を確認する。
+- 本番復旧は書き込みを止めて現在のDBを保存してから行う。復元後はコードとの互換性・曲一覧・ランキング・成績受付を確認して再開する。旧DBは復旧確認まで残す。
+- 詳細なコマンドと切り戻しは[バックアップ運用・復旧手順](https://github.com/mmhige0/songtypingtheater-ranking-backups/blob/main/docs/backups.md)を参照（専用リポジトリの閲覧権限が必要）。エクスポート中はDBリクエストが待たされることがある。
 
 ## CI・デプロイ
 
