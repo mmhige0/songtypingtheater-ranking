@@ -6,7 +6,8 @@ import { dailySongs, fetchDailyRankings, jstDate, parseDailyDate } from '../lib/
 import { ApiError } from '../lib/http'
 import { limitByIp } from '../lib/rate-limit'
 import { isTopHost } from '../lib/site-host'
-import { fetchPopularSongs } from '../lib/popular-songs'
+// 人気曲はクエリ負荷のため一時停止中
+// import { fetchPopularSongs } from '../lib/popular-songs'
 import { fetchBestScores, fetchRankings } from '../lib/ranking'
 import { findApprovedSong, searchSongs } from '../lib/song-query'
 import {
@@ -71,8 +72,11 @@ pages.get('/', async (c) => {
   const url = new URL(c.req.url)
   if (!isTopHost(c.env, url)) return c.redirect(`${SONG_LIST_PATH}${url.search}`, 301)
   const today = jstDate(Date.now())
-  const [songs, popular] = await Promise.all([dailySongs(c.env.DB, today), fetchPopularSongs(c.env.DB, today)])
-  return render(c, <TopPage today={today} dailySongs={songs} popular={popular} />)
+  // 人気曲はクエリ負荷のため一時停止中
+  // const [songs, popular] = await Promise.all([dailySongs(c.env.DB, today), fetchPopularSongs(c.env.DB, today)])
+  // return render(c, <TopPage today={today} dailySongs={songs} popular={popular} />)
+  const songs = await dailySongs(c.env.DB, today)
+  return render(c, <TopPage today={today} dailySongs={songs} />)
 })
 
 pages.get(SONG_LIST_PATH, async (c) => {

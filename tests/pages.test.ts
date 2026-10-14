@@ -83,7 +83,15 @@ describe('top page', () => {
     expect(text).toContain(`href="${RANKING}/daily"`)
   })
 
-  it('counts plays by song over the 7 days up to yesterday', async () => {
+  it('shows the popular songs heading as coming soon while paused', async () => {
+    const popular = popularSection(await html(TOP))
+    expect(popular).toContain('>人気曲</h2>')
+    expect(popular).toContain('>準備中です<')
+    expect(popular).not.toContain('class="popular-row"')
+  })
+
+  // 人気曲はクエリ負荷のため一時停止中
+  it.skip('counts plays by song over the 7 days up to yesterday', async () => {
     const song2 = await insertSong('002', '別の曲')
     const at = (ms: number) => new Date(Date.parse(FIRST) + ms).toISOString()
     for (let i = 0; i < 3; i++) {
@@ -120,7 +128,7 @@ describe('top page', () => {
     expect(row.indexOf('架空の曲名')).toBeLessThan(row.indexOf('架空のアーティスト'))
   })
 
-  it('gives tied counts the same rank and shows 5 at most', async () => {
+  it.skip('gives tied counts the same rank and shows 5 at most', async () => {
     for (let i = 0; i < 6; i++) {
       const ref = await insertSong(String(100 + i), `曲${i}`)
       await insertPlay({ playId: `p${i}`, songRefId: ref, score: 1, participants: solo(i, `P${i}`), receivedAt: FIRST })
@@ -161,7 +169,7 @@ describe('top page', () => {
     const top = await get('/', single)
     expect(top.status).toBe(200)
     const text = await top.text()
-    expect(text).toContain('id="popular-title"')
+    expect(text).toContain('id="daily-title"')
     expect(text).toContain('href="http://localhost:8787/songs"')
     expect((await get('/songs', single)).status).toBe(200)
   })
