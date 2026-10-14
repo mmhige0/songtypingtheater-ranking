@@ -1,5 +1,6 @@
-import type { Activity } from '../lib/activity'
-import type { BestScore, BestScores, RankingPage } from '../lib/ranking'
+import type { PopularSongs } from '../lib/popular-songs'
+import { DAILY_GROUPS } from '../lib/daily'
+import type { BestScore, BestScores, GroupRankingPage, RankingPage } from '../lib/ranking'
 import type { Child } from 'hono/jsx'
 import type { SongSummary } from '../lib/song-query'
 import {
@@ -88,46 +89,25 @@ const TopCard = ({ href, title, accent = false, children }: { href: string; titl
   </a>
 )
 
-// よく遊んだ人・よく遊ばれた曲の一覧。hrefがあれば行全体をリンクにする
-const ActivityList = ({
-  title,
-  rows,
-}: {
-  title: string
-  rows: { rank: number; label: string; plays: number; href?: string }[]
-}) => (
-  <section class="activity" aria-label={title}>
-    <h3 class="activity-title">{title}</h3>
-    {rows.length === 0 ? (
-      <p class="empty-box">記録はまだありません</p>
-    ) : (
-      <ol class="box activity-list">
-        {rows.map((row) => {
-          const content = (
-            <>
-              <span class={row.rank === 1 ? 'activity-rank rank-1 num' : 'activity-rank num'}>{row.rank}位</span>
-              <span class="activity-label" title={row.label}>
-                {row.label}
-              </span>
-              <span class="activity-plays num">{row.plays}回</span>
-            </>
-          )
-          return (
-            <li>
-              {row.href ? (
-                <a class="activity-row" href={row.href}>
-                  {content}
-                </a>
-              ) : (
-                <div class="activity-row">{content}</div>
-              )}
-            </li>
-          )
-        })}
-      </ol>
-    )}
-  </section>
-)
+// 人気曲。行全体がその曲のランキングへのリンク
+const PopularSongList = ({ songs, rankingOrigin }: { songs: PopularSongs['songs']; rankingOrigin: string }) =>
+  songs.length === 0 ? (
+    <p class="empty-box">記録はまだありません</p>
+  ) : (
+    <ol class="box popular-list">
+      {songs.map((song) => (
+        <li>
+          <a class="popular-row" href={`${rankingOrigin}${songPath(song.gameSongId)}`}>
+            <span class={song.rank === 1 ? 'popular-rank rank-1 num' : 'popular-rank num'}>{song.rank}位</span>
+            <span class="popular-label" title={song.title}>
+              {song.title}
+            </span>
+            <span class="popular-plays num">{song.plays}回</span>
+          </a>
+        </li>
+      ))}
+    </ol>
+  )
 
 const CREDIT_GROUPS = [
   {
@@ -161,9 +141,9 @@ const Credits = () => (
   </section>
 )
 
-export type TopPageProps = { today: string; dailySongs: SongSummary[]; activity: Activity }
+export type TopPageProps = { today: string; dailySongs: SongSummary[]; popular: PopularSongs }
 
-export const TopPage = ({ today, dailySongs, activity }: TopPageProps) => {
+export const TopPage = ({ today, dailySongs, popular }: TopPageProps) => {
   const site = useSite()
   return (
     <Layout title="" subtitle={false}>
@@ -209,28 +189,14 @@ export const TopPage = ({ today, dailySongs, activity }: TopPageProps) => {
           </a>
         </section>
 
-        <section class="top-section" aria-labelledby="activity-title">
+        <section class="top-section" aria-labelledby="popular-title">
           <div class="top-section-head">
-            <h2 id="activity-title">この1週間</h2>
+            <h2 id="popular-title">人気曲</h2>
             <span class="top-section-note num">
-              {formatDate(activity.firstDate)}〜{formatDate(activity.lastDate)}
+              {formatDate(popular.firstDate)}〜{formatDate(popular.lastDate)}
             </span>
           </div>
-          <div class="activities">
-            <ActivityList
-              title="よく遊んだ人"
-              rows={activity.players.map((player) => ({ rank: player.rank, label: player.name, plays: player.plays }))}
-            />
-            <ActivityList
-              title="よく遊ばれた曲"
-              rows={activity.songs.map((song) => ({
-                rank: song.rank,
-                label: song.title,
-                plays: song.plays,
-                href: `${site.ranking}${songPath(song.gameSongId)}`,
-              }))}
-            />
-          </div>
+          <PopularSongList songs={popular.songs} rankingOrigin={site.ranking} />
         </section>
 
         <Credits />
@@ -467,7 +433,8 @@ export type DailyDay = 'today' | 'yesterday'
 export type DailyPageProps = {
   day: DailyDay
   date: string
-  songs: { song: SongSummary; rankings: Map<PlayerCount, RankingPage> }[]
+  // DAILY_GROUPSと同じ順のランキング
+  songs: { song: SongSummary; rankings: GroupRankingPage[] }[]
   limit: number
 }
 
@@ -489,7 +456,7 @@ export const DailyPage = ({ day, date, songs, limit }: DailyPageProps) => (
       </nav>
       <p class="daily-date num">{formatDate(date)}</p>
     </div>
-    <p class="small muted">その日（日本時間の0時〜24時）に受け付けた記録だけで、人数ごとの上位{limit}件を表示します</p>
+    <p class="small muted">その日（日本時間の0時〜24時）に受け付けた記録だけで、ソロ・マルチ（2〜4人）それぞれ上位{limit}件を表示します</p>
 
     {songs.length === 0 ? (
       <p class="empty-box">曲はまだ登録されていません</p>
@@ -504,10 +471,10 @@ export const DailyPage = ({ day, date, songs, limit }: DailyPageProps) => (
               <SongMeta song={song} />
             </div>
             <div class="daily-panels">
-              {PLAYER_COUNTS.map((count) => (
+              {DAILY_GROUPS.map((group, i) => (
                 <div class="daily-panel">
-                  <h3 class="daily-panel-title">{count}人</h3>
-                  <RankingList entries={rankings.get(count)!.entries} emptyMessage="記録なし" />
+                  <h3 class="daily-panel-title">{group.label}</h3>
+                  <RankingList entries={rankings[i]!.entries} emptyMessage="記録なし" showPlayerCount={group.min !== group.max} />
                 </div>
               ))}
             </div>

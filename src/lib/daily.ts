@@ -6,6 +6,11 @@ const JST_OFFSET_MS = 9 * 60 * 60 * 1000
 const DAY_MS = 24 * 60 * 60 * 1000
 
 export const DAILY_SONG_COUNT = 4
+// ランキングはソロ（1人）とマルチ（2〜4人をまとめた順位）に分ける
+export const DAILY_GROUPS = [
+  { label: 'ソロ', min: 1, max: 1 },
+  { label: 'マルチ', min: 2, max: 4 },
+] as const
 
 export const jstDate = (now: number) => new Date(now + JST_OFFSET_MS).toISOString().slice(0, 10)
 

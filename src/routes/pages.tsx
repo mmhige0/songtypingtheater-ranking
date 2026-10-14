@@ -2,12 +2,12 @@ import { Hono, type Context } from 'hono'
 import { raw } from 'hono/html'
 import type { Child } from 'hono/jsx'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
-import { addDays, dailySongs, jstDate, jstDayRange } from '../lib/daily'
+import { addDays, DAILY_GROUPS, dailySongs, jstDate, jstDayRange } from '../lib/daily'
 import { ApiError, invalidRequest } from '../lib/http'
 import { limitByIp } from '../lib/rate-limit'
 import { isTopHost } from '../lib/site-host'
-import { fetchActivity } from '../lib/activity'
-import { fetchBestScores, fetchRankings } from '../lib/ranking'
+import { fetchPopularSongs } from '../lib/popular-songs'
+import { fetchBestScores, fetchGroupRankings, fetchRankings } from '../lib/ranking'
 import { findApprovedSong, searchSongs } from '../lib/song-query'
 import {
   PLAYER_COUNTS,
@@ -35,7 +35,7 @@ const SONG_LIST_LIMIT = 100
 // 曲別ランキングで人数ごとに表示する件数。超えた分は人数別ページで見る
 const SONG_RANKING_LIMIT = 10
 const PLAYER_RANKING_LIMIT = 50
-// 今日の曲で人数ごとに表示する件数
+// 今日の曲でソロ・マルチそれぞれに表示する件数
 const DAILY_RANKING_LIMIT = 3
 
 const render = (c: Context, page: Child, status: ContentfulStatusCode = 200) =>
@@ -73,8 +73,8 @@ pages.get('/', async (c) => {
   const url = new URL(c.req.url)
   if (!isTopHost(c.env, url)) return c.redirect(`${SONG_LIST_PATH}${url.search}`, 301)
   const today = jstDate(Date.now())
-  const [songs, activity] = await Promise.all([dailySongs(c.env.DB, today), fetchActivity(c.env.DB, today)])
-  return render(c, <TopPage today={today} dailySongs={songs} activity={activity} />)
+  const [songs, popular] = await Promise.all([dailySongs(c.env.DB, today), fetchPopularSongs(c.env.DB, today)])
+  return render(c, <TopPage today={today} dailySongs={songs} popular={popular} />)
 })
 
 pages.get(SONG_LIST_PATH, async (c) => {
@@ -171,7 +171,7 @@ pages.get(DAILY_PATH, async (c) => {
   const songs = await dailySongs(c.env.DB, date)
   const rankings = await Promise.all(
     songs.map((song) =>
-      fetchRankings(c.env.DB, song.id, PLAYER_COUNTS, { fullComboOnly: false, name: null, received }, {
+      fetchGroupRankings(c.env.DB, song.id, DAILY_GROUPS, { fullComboOnly: false, name: null, received }, {
         limit: DAILY_RANKING_LIMIT,
         offset: 0,
       }),

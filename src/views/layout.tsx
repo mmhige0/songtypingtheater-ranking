@@ -336,7 +336,7 @@ table.ranking { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .top-card h2 { font-size: 1.5rem; font-weight: 600; }
 .top-section { margin-top: 56px; }
 
-/* トップの今日の曲・この1週間 */
+/* トップの今日の曲・人気曲 */
 .top-section-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px; margin-bottom: 16px; }
 .top-section-head h2 { font-size: 1.5rem; font-weight: 600; }
 .top-section-note { font-size: .9375rem; font-weight: 600; color: hsl(var(--muted-foreground)); }
@@ -350,22 +350,18 @@ table.ranking { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .daily-title:hover .daily-title-name { color: hsl(var(--primary)); }
 .top-more { display: inline-block; margin-top: 12px; font-size: .9375rem; font-weight: 600; text-decoration: none; }
 .top-more:hover { text-decoration: underline; }
-.activities { display: grid; gap: 24px; }
-@media (min-width: 768px) { .activities { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-.activity { min-width: 0; }
-.activity-title { margin-bottom: 8px; font-size: 1.0625rem; font-weight: 600; color: hsl(var(--muted-foreground)); }
-.activity-list { margin: 0; padding: 0; overflow: hidden; list-style: none; }
-.activity-list li + li { border-top: 1px solid hsl(var(--border-subtle)); }
-.activity-row {
+.popular-list { margin: 0; padding: 0; overflow: hidden; list-style: none; }
+.popular-list li + li { border-top: 1px solid hsl(var(--border-subtle)); }
+.popular-row {
   display: grid; grid-template-columns: 2.75rem minmax(0, 1fr) auto; align-items: center; gap: 12px;
   padding: 12px 16px; color: hsl(var(--foreground)); text-decoration: none;
 }
-a.activity-row:hover { background: hsl(var(--primary) / .07); }
-a.activity-row:hover .activity-label { color: hsl(var(--primary)); }
-.activity-rank { font-weight: 700; text-align: right; white-space: nowrap; }
-.activity-rank.rank-1 { color: hsl(var(--primary)); }
-.activity-label { overflow: hidden; font-weight: 600; text-overflow: ellipsis; white-space: pre; }
-.activity-plays { font-weight: 700; white-space: nowrap; }
+.popular-row:hover { background: hsl(var(--primary) / .07); }
+.popular-row:hover .popular-label { color: hsl(var(--primary)); }
+.popular-rank { font-weight: 700; text-align: right; white-space: nowrap; }
+.popular-rank.rank-1 { color: hsl(var(--primary)); }
+.popular-label { overflow: hidden; font-weight: 600; text-overflow: ellipsis; white-space: pre; }
+.popular-plays { font-weight: 700; white-space: nowrap; }
 
 /* クレジット（LyricDataCreatorのCreditsSection） */
 .credits { margin-top: 64px; padding-top: 32px; border-top: 1px solid hsl(var(--border)); }
@@ -377,7 +373,7 @@ a.activity-row:hover .activity-label { color: hsl(var(--primary)); }
 .credits a { font-weight: 600; text-decoration: none; }
 .credits a:hover { color: hsl(var(--primary) / .8); }
 
-/* 今日の曲: 曲ごとのカードに1〜4人のその日の上位を並べる（PCは4列、それ以外は2列） */
+/* 今日の曲: 曲ごとのカードにソロ・マルチのその日の上位を2列で並べる */
 .daily-head { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin: 24px 0 8px; }
 .daily-date { margin: 0; font-size: 1.125rem; font-weight: 700; }
 .daily-songs { display: grid; gap: 24px; margin-top: 16px; }
@@ -387,22 +383,17 @@ a.activity-row:hover .activity-label { color: hsl(var(--primary)); }
 .daily-song-title:hover { color: hsl(var(--primary)); }
 .daily-song-head .page-meta { margin-top: 4px; }
 .daily-panels { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.daily-panel { min-width: 0; border-top: 1px solid hsl(var(--border-subtle)); }
-.daily-panel:nth-child(odd) { border-right: 1px solid hsl(var(--border-subtle)); }
-.daily-panel:nth-child(-n+2) { border-top: 0; }
+.daily-panel { min-width: 0; }
+.daily-panel + .daily-panel { border-left: 1px solid hsl(var(--border-subtle)); }
 .daily-panel-title { padding: 12px 16px 0; font-size: 1rem; color: hsl(var(--muted-foreground)); }
 .daily-panel .panel-empty { padding: 16px; }
+.entry-players { margin-left: 8px; font-size: .8125rem; font-weight: 600; color: hsl(var(--muted-foreground)); }
 @media (max-width: 639px) {
   .daily-panel-title { padding: 10px 12px 0; }
   .daily-panel .entry { padding: 8px 12px; }
   .daily-panel .entry-rank { font-size: 1rem; }
   .daily-panel .entry-score { font-size: 1.0625rem; }
   .daily-panel .participants { font-size: .9375rem; }
-}
-@media (min-width: 1024px) {
-  .daily-panels { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-  .daily-panel { border-top: 0; }
-  .daily-panel:not(:last-child) { border-right: 1px solid hsl(var(--border-subtle)); }
 }
 `
 

@@ -1,7 +1,7 @@
 import { env } from 'cloudflare:workers'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import app from '../src/index'
-import { ACTIVITY_CACHE_TTL_MS, fetchActivity } from '../src/lib/activity'
+import { fetchPopularSongs, POPULAR_SONGS_CACHE_TTL_MS } from '../src/lib/popular-songs'
 import { dailySongs } from '../src/lib/daily'
 import { resetDb } from './helpers'
 import { at, insertPlay, insertPlayers, insertSong } from './view-helpers'
@@ -33,12 +33,12 @@ beforeEach(async () => {
 })
 
 describe('top page', () => {
-  // 日本時間 2026-10-14 12:00。この1週間は10/7 0:00〜10/14 0:00（日本時間）
+  // 日本時間 2026-10-14 12:00。人気曲の期間は10/7 0:00〜10/14 0:00（日本時間）
   const NOW_UTC = '2026-10-14T03:00:00.000Z'
   const FIRST = '2026-10-06T15:00:00.000Z'
   const solo = (i: number, name: string) => [{ id: IDS[i]!, name, color: 'R' as const }]
-  const section = (text: string, title: string) => {
-    const start = text.indexOf(`aria-label="${title}"`)
+  const popularSection = (text: string) => {
+    const start = text.indexOf('id="popular-title"')
     return text.slice(start, text.indexOf('</section>', start))
   }
 
@@ -79,67 +79,64 @@ describe('top page', () => {
     expect(text).toContain(`href="${RANKING}/daily"`)
   })
 
-  it('counts plays of the 7 days up to yesterday by player and by song', async () => {
+  it('counts plays by song over the 7 days up to yesterday', async () => {
     const song2 = await insertSong('002', '別の曲')
     const at = (ms: number) => new Date(Date.parse(FIRST) + ms).toISOString()
-    // Alice: 曲1をソロで3回（最後のプレイの名前を出す）＋曲2をBobと2人で1回
-    await insertPlay({ playId: 'a1', songRefId: song, score: 1, participants: solo(0, '旧名Alice'), receivedAt: at(0) })
-    await insertPlay({ playId: 'a2', songRefId: song, score: 1, participants: solo(0, '旧名Alice'), receivedAt: at(1000) })
-    await insertPlay({ playId: 'a3', songRefId: song, score: 1, participants: solo(0, 'Alice'), receivedAt: at(2000) })
+    for (let i = 0; i < 3; i++) {
+      await insertPlay({ playId: `a${i}`, songRefId: song, score: 1, participants: solo(i, `P${i}`), receivedAt: at(i) })
+    }
     await insertPlay({
-      playId: 'ab',
+      playId: 'duo',
       songRefId: song2,
       score: 1,
       participants: [
-        { id: IDS[0]!, name: 'Alice', color: 'R' },
-        { id: IDS[1]!, name: 'Bob', color: 'B' },
+        { id: IDS[0]!, name: 'P0', color: 'R' },
+        { id: IDS[1]!, name: 'P1', color: 'B' },
       ],
-      receivedAt: at(1500),
+      receivedAt: at(100),
     })
-    await insertPlay({ playId: 'b1', songRefId: song2, score: 1, participants: solo(1, 'Bob'), receivedAt: at(3000) })
+    await insertPlay({ playId: 'b1', songRefId: song2, score: 1, participants: solo(1, 'P1'), receivedAt: at(200) })
     // 期間の直前・今日・移行分・除外済みは数えない
-    await insertPlay({ playId: 'early', songRefId: song, score: 1, participants: solo(2, '期間前'), receivedAt: at(-1) })
-    await insertPlay({ playId: 'today', songRefId: song, score: 1, participants: solo(3, '今日'), receivedAt: '2026-10-13T15:00:00.000Z' })
-    await insertPlay({ playId: 'legacy', songRefId: song, score: 1, participants: solo(4, '移行'), receivedAt: at(5000), hostPlayerId: null })
-    await insertPlay({ playId: 'excluded', songRefId: song, score: 1, participants: solo(5, '除外'), receivedAt: at(5000), excluded: true })
+    await insertPlay({ playId: 'early', songRefId: song2, score: 1, participants: solo(2, 'P2'), receivedAt: at(-1) })
+    await insertPlay({ playId: 'today', songRefId: song2, score: 1, participants: solo(3, 'P3'), receivedAt: '2026-10-13T15:00:00.000Z' })
+    await insertPlay({ playId: 'legacy', songRefId: song2, score: 1, participants: solo(4, 'P4'), receivedAt: at(300), hostPlayerId: null })
+    await insertPlay({ playId: 'excluded', songRefId: song2, score: 1, participants: solo(5, 'P5'), receivedAt: at(300), excluded: true })
 
     const text = await html(TOP)
-    expect(text).toContain('10/7（水）〜10/13（火）')
-    const players = section(text, 'よく遊んだ人')
-    expect(players.indexOf('Alice')).toBeLessThan(players.indexOf('Bob'))
-    expect(players).toContain('>4回<')
-    expect(players).toContain('>2回<')
-    expect(players).not.toContain('旧名Alice')
-    for (const name of ['期間前', '今日', '移行', '除外']) expect(players).not.toContain(name)
-    const songs = section(text, 'よく遊ばれた曲')
-    expect(songs.indexOf('架空の曲名')).toBeLessThan(songs.indexOf('別の曲'))
-    expect(songs).toContain(`href="${RANKING}/songs/001"`)
-    expect(songs).toContain('>3回<')
-    expect(songs).toContain('>2回<')
+    expect(text).not.toContain('よく遊んだ人')
+    const popular = popularSection(text)
+    expect(popular).toContain('>人気曲</h2>')
+    expect(popular).toContain('10/7（水）〜10/13（火）')
+    expect(popular.indexOf('架空の曲名')).toBeLessThan(popular.indexOf('別の曲'))
+    expect(popular).toContain(`href="${RANKING}/songs/001"`)
+    expect(popular).toContain('>3回<')
+    expect(popular).toContain('>2回<')
   })
 
   it('gives tied counts the same rank and shows 5 at most', async () => {
     for (let i = 0; i < 6; i++) {
-      await insertPlay({ playId: `p${i}`, songRefId: song, score: 1, participants: solo(i, `Player${i}`), receivedAt: FIRST })
+      const ref = await insertSong(String(100 + i), `曲${i}`)
+      await insertPlay({ playId: `p${i}`, songRefId: ref, score: 1, participants: solo(i, `P${i}`), receivedAt: FIRST })
     }
-    const players = section(await html(TOP), 'よく遊んだ人')
-    expect(players.match(/class="activity-row"/g)).toHaveLength(5)
-    expect(players.match(/>1位</g)).toHaveLength(5)
+    const popular = popularSection(await html(TOP))
+    expect(popular.match(/class="popular-row"/g)).toHaveLength(5)
+    expect(popular.match(/>1位</g)).toHaveLength(5)
   })
 
   it('caches the counts until the date changes or an hour passes', async () => {
-    await insertPlay({ playId: 'p0', songRefId: song, score: 1, participants: solo(0, '最初の人'), receivedAt: FIRST })
-    expect((await fetchActivity(env.DB, '2026-10-14')).players).toHaveLength(1)
-    await insertPlay({ playId: 'p1', songRefId: song, score: 1, participants: solo(1, '後の人'), receivedAt: FIRST })
-    expect((await fetchActivity(env.DB, '2026-10-14')).players).toHaveLength(1)
+    const song2 = await insertSong('002', '別の曲')
+    await insertPlay({ playId: 'p0', songRefId: song, score: 1, participants: solo(0, 'P0'), receivedAt: FIRST })
+    expect((await fetchPopularSongs(env.DB, '2026-10-14')).songs).toHaveLength(1)
+    await insertPlay({ playId: 'p1', songRefId: song2, score: 1, participants: solo(1, 'P1'), receivedAt: FIRST })
+    expect((await fetchPopularSongs(env.DB, '2026-10-14')).songs).toHaveLength(1)
 
-    vi.setSystemTime(new Date(Date.parse(NOW_UTC) + ACTIVITY_CACHE_TTL_MS + 1))
-    expect((await fetchActivity(env.DB, '2026-10-14')).players).toHaveLength(2)
+    vi.setSystemTime(new Date(Date.parse(NOW_UTC) + POPULAR_SONGS_CACHE_TTL_MS + 1))
+    expect((await fetchPopularSongs(env.DB, '2026-10-14')).songs).toHaveLength(2)
 
-    await insertPlay({ playId: 'p2', songRefId: song, score: 1, participants: solo(2, '別の日の人'), receivedAt: '2026-10-13T15:00:00.000Z' })
-    const nextDay = await fetchActivity(env.DB, '2026-10-15')
+    await insertPlay({ playId: 'p2', songRefId: song, score: 1, participants: solo(2, 'P2'), receivedAt: '2026-10-13T15:00:00.000Z' })
+    const nextDay = await fetchPopularSongs(env.DB, '2026-10-15')
     expect(nextDay.firstDate).toBe('2026-10-08')
-    expect(nextDay.players).toHaveLength(1)
+    expect(nextDay.songs).toHaveLength(1)
   })
 
   it('redirects other paths on the top host to the ranking host', async () => {
@@ -157,7 +154,7 @@ describe('top page', () => {
     const top = await get('/', single)
     expect(top.status).toBe(200)
     const text = await top.text()
-    expect(text).toContain('id="activity-title"')
+    expect(text).toContain('id="popular-title"')
     expect(text).toContain('href="http://localhost:8787/songs"')
     expect((await get('/songs', single)).status).toBe(200)
   })
@@ -350,6 +347,8 @@ describe('daily page', () => {
     expect(text).toMatch(/class="chip active" href="\/daily" aria-current="page"/)
     for (const song of picked) expect(text).toContain(`href="/songs/${song.gameSongId}"`)
     expect(text.match(/class="box daily-song"/g)).toHaveLength(4)
+    expect(text.match(/class="daily-panel-title">ソロ</g)).toHaveLength(4)
+    expect(text.match(/class="daily-panel-title">マルチ</g)).toHaveLength(4)
     expect(text).toContain('記録なし')
     expect(await html('/songs')).toContain('href="/daily"')
   })
@@ -376,6 +375,31 @@ describe('daily page', () => {
     expect(yesterday).toMatch(/class="chip active" href="\/daily\?day=yesterday" aria-current="page"/)
     expect(yesterday).toContain('昨日の人')
     expect(yesterday).not.toContain('当日の人')
+  })
+
+  it('ranks 2 to 4 player records together as multi, with the player count', async () => {
+    const [song1] = await dailySongs(env.DB, '2026-10-14')
+    const ref = (await env.DB.prepare('SELECT id FROM song WHERE game_song_id = ?').bind(song1!.gameSongId).first<{ id: number }>())!.id
+    const team = (ids: number[], prefix: string) =>
+      ids.map((i, n) => ({ id: IDS[i]!, name: `${prefix}${n}`, color: (['R', 'B', 'Y', 'G'] as const)[n]! }))
+    const received = '2026-10-14T01:00:00.000Z'
+    await insertPlay({ playId: 'solo', songRefId: ref, score: 999, participants: solo(0, 'ソロの人'), receivedAt: received })
+    await insertPlay({ playId: 'duo', songRefId: ref, score: 300, participants: team([1, 2], '二人'), receivedAt: received })
+    await insertPlay({ playId: 'quad', songRefId: ref, score: 500, participants: team([3, 4, 5, 6], '四人'), receivedAt: received })
+    await insertPlay({ playId: 'trio', songRefId: ref, score: 400, participants: team([7, 8, 9], '三人'), receivedAt: received })
+    const text = await html('/daily')
+    const card = text.slice(text.indexOf(`href="/songs/${song1!.gameSongId}"`))
+    const multi = card.slice(card.indexOf('>マルチ<'), card.indexOf('</section>'))
+    expect(multi).not.toContain('ソロの人')
+    // 2〜4人をまとめて得点順に順位を付け、人数を添える
+    expect(multi.indexOf('四人0')).toBeLessThan(multi.indexOf('三人0'))
+    expect(multi.indexOf('三人0')).toBeLessThan(multi.indexOf('二人0'))
+    expect(multi).toContain('1位<span class="entry-players">4人</span>')
+    expect(multi).toContain('2位<span class="entry-players">3人</span>')
+    expect(multi).toContain('3位<span class="entry-players">2人</span>')
+    const soloPanel = card.slice(card.indexOf('>ソロ<'), card.indexOf('>マルチ<'))
+    expect(soloPanel).toContain('ソロの人')
+    expect(soloPanel).not.toContain('class="entry-players"')
   })
 
   it('rejects other days', async () => {
