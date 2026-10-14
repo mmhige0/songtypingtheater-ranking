@@ -4,7 +4,6 @@
 送信系API（曲登録・初回登録・成績送信）、送信回数制限、ランキング閲覧API・画面を実装し、Cloudflareへデプロイ済み。旧記録の移行インポーターは未実装。
 
 - URL: `https://ranking.kayomodoki.com`（APIの送信先とランキング画面）、`https://kayomodoki.com`（トップ。同じWorker）
-- 移行期間中は`https://songtypingtheater-ranking.songtypingtheater-ranking.workers.dev`も同じWorker・同じDBで受け付ける
 
 ## 文書
 

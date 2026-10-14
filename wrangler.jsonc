@@ -6,14 +6,14 @@
   "observability": { "enabled": true },
   // favicon等の静的ファイル。該当しないパスはWorkerが処理する
   "assets": { "directory": "./public" },
-  // 独自ドメインのほか、移行期間中はworkers.devのURLも受け付ける
-  "workers_dev": true,
+  // 独自ドメインだけで受け付ける
+  "workers_dev": false,
   "routes": [
     { "pattern": "ranking.kayomodoki.com", "custom_domain": true },
     { "pattern": "kayomodoki.com", "custom_domain": true }
   ],
   // TOP_ORIGINのホストでは`/`にトップを出し、それ以外のパスはRANKING_ORIGINへ転送する。
-  // RANKING_ORIGIN（とworkers.dev等それ以外のホスト）の`/`は曲一覧へ転送する。両者が同じなら1つのホストで両方出す（src/lib/site-host.ts）
+  // RANKING_ORIGIN（とlocalhost等それ以外のホスト）の`/`は曲一覧へ転送する。両者が同じなら1つのホストで両方出す（src/lib/site-host.ts）
   "vars": {
     "TOP_ORIGIN": "https://kayomodoki.com",
     "RANKING_ORIGIN": "https://ranking.kayomodoki.com"
