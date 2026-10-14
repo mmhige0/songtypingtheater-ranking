@@ -1,6 +1,6 @@
 import type { PopularSongs } from '../lib/popular-songs'
-import { DAILY_GROUPS } from '../lib/daily'
-import type { BestScore, BestScores, GroupRankingPage, RankingPage } from '../lib/ranking'
+import { DAILY_GROUPS, dailyDates, type DailyRanking } from '../lib/daily'
+import type { BestScore, BestScores, RankingPage } from '../lib/ranking'
 import type { Child } from 'hono/jsx'
 import type { SongSummary } from '../lib/song-query'
 import {
@@ -33,11 +33,8 @@ const pageParam = (page: number) => (page === 1 ? null : page)
 export const SONG_LIST_PATH = '/songs'
 export const DAILY_PATH = '/daily'
 
-const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土']
-
-// 「2026-10-14」を「10/14(水)」にする
-const formatDate = (date: string) =>
-  `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}(${WEEKDAYS[new Date(`${date}T00:00:00Z`).getUTCDay()]})`
+// 「2026-10-14」を「10/14」にする
+const formatDate = (date: string) => `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}`
 
 const songPath = (gameSongId: string) => `/songs/${encodeURIComponent(gameSongId)}`
 
@@ -431,32 +428,24 @@ export const SongListPage = ({ songs, q, levelRange, sort, dir, page, limit, tot
 
 // ---- 今日の曲（日ごとの課題曲と、その日の記録だけのランキング） ----
 
-export type DailyDay = 'today' | 'yesterday'
+export type DailyPageProps = { date: string; today: string; songs: DailyRanking[] }
 
-export type DailyPageProps = {
-  day: DailyDay
-  date: string
-  // DAILY_GROUPSと同じ順のランキング
-  songs: { song: SongSummary; rankings: GroupRankingPage[] }[]
-}
-
-export const DailyPage = ({ day, date, songs }: DailyPageProps) => (
+export const DailyPage = ({ date, today, songs }: DailyPageProps) => (
   <Layout title="今日の曲">
     <h1 class="page-title">今日の曲</h1>
     <div class="daily-head">
+      {/* 今日を左端に新しい順。今日はdateを付けない */}
       <nav class="chips" aria-label="日付">
-        <a class={day === 'today' ? 'chip active' : 'chip'} href={DAILY_PATH} aria-current={day === 'today' ? 'page' : undefined}>
-          今日
-        </a>
-        <a
-          class={day === 'yesterday' ? 'chip active' : 'chip'}
-          href={`${DAILY_PATH}${toQuery({ day: 'yesterday' })}`}
-          aria-current={day === 'yesterday' ? 'page' : undefined}
-        >
-          昨日
-        </a>
+        {dailyDates(today).map((d) => (
+          <a
+            class={d === date ? 'chip active num' : 'chip num'}
+            href={`${DAILY_PATH}${toQuery({ date: d === today ? null : d })}`}
+            aria-current={d === date ? 'page' : undefined}
+          >
+            {formatDate(d)}
+          </a>
+        ))}
       </nav>
-      <p class="daily-date num">{formatDate(date)}</p>
     </div>
 
     {songs.length === 0 ? (

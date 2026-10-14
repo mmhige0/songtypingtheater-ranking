@@ -380,10 +380,10 @@ table.ranking { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .credits a { font-weight: 600; text-decoration: none; }
 .credits a:hover { color: hsl(var(--primary) / .8); }
 
-/* 今日の曲: 曲ごとのカードにソロ・マルチのその日の上位を2列で並べる */
+/* 今日の曲: 曲ごとのカードにソロ・マルチのその日の上位を2列で並べる。PCはカードを2×2に並べる */
 .daily-head { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin: 24px 0 8px; }
-.daily-date { margin: 0; font-size: 1.125rem; font-weight: 700; }
 .daily-songs { display: grid; gap: 24px; margin-top: 16px; }
+@media (min-width: 1024px) { .daily-songs { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .daily-song { overflow: hidden; }
 .daily-song-head { padding: 16px 16px 12px; border-bottom: 1px solid hsl(var(--border-subtle)); }
 .daily-song-title { font-family: "Space Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Noto Sans JP", sans-serif; font-size: 1.375rem; font-weight: 700; color: hsl(var(--foreground)); text-decoration: none; overflow-wrap: anywhere; }

@@ -2,7 +2,7 @@ import { env } from 'cloudflare:workers'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import app from '../src/index'
 import { fetchPopularSongs, POPULAR_SONGS_CACHE_TTL_MS } from '../src/lib/popular-songs'
-import { dailySongs } from '../src/lib/daily'
+import { DAILY_PAST_CACHE_TTL_MS, dailySongs } from '../src/lib/daily'
 import { resetDb } from './helpers'
 import { at, insertPlay, insertPlayers, insertSong } from './view-helpers'
 
@@ -73,7 +73,8 @@ describe('top page', () => {
     for (let i = 2; i <= 6; i++) await insertSong(String(i).padStart(3, '0'), `架空の曲${i}`)
     const picked = await dailySongs(env.DB, '2026-10-14')
     const text = await html(TOP)
-    expect(text).toContain('10/14(水)')
+    expect(text).toContain('>10/14<')
+    expect(text).not.toContain('(水)')
     expect(text.match(/class="box daily-title"/g)).toHaveLength(4)
     for (const s of picked) expect(text).toContain(`href="${RANKING}/songs/${s.gameSongId}"`)
     expect(text).toContain(`href="${RANKING}/daily"`)
@@ -106,7 +107,7 @@ describe('top page', () => {
     expect(text).not.toContain('よく遊んだ人')
     const popular = popularSection(text)
     expect(popular).toContain('>人気曲</h2>')
-    expect(popular).toContain('10/7(水)〜10/13(火)')
+    expect(popular).toContain('10/7〜10/13')
     expect(popular.indexOf('架空の曲名')).toBeLessThan(popular.indexOf('別の曲'))
     expect(popular).toContain(`href="${RANKING}/songs/001"`)
     // 回数は出さず、曲番・曲名・アーティスト名の順に出す
@@ -346,9 +347,18 @@ describe('daily page', () => {
     expect(picked).toHaveLength(4)
     const text = await html('/daily')
     expect(text).toContain('<h1 class="page-title">今日の曲</h1>')
-    expect(text).toContain('10/14(水)')
     expect(text).not.toContain('受け付けた記録だけで')
-    expect(text).toMatch(/class="chip active" href="\/daily" aria-current="page"/)
+    // 今日を左端に新しい順の7日分。今日はdateを付けない
+    const chips = [...text.matchAll(/<a class="chip( active)? num" href="([^"]*)"[^>]*>([^<]*)</g)].map((m) => [m[2], m[3], !!m[1]])
+    expect(chips).toEqual([
+      ['/daily', '10/14', true],
+      ['/daily?date=2026-10-13', '10/13', false],
+      ['/daily?date=2026-10-12', '10/12', false],
+      ['/daily?date=2026-10-11', '10/11', false],
+      ['/daily?date=2026-10-10', '10/10', false],
+      ['/daily?date=2026-10-09', '10/9', false],
+      ['/daily?date=2026-10-08', '10/8', false],
+    ])
     for (const song of picked) expect(text).toContain(`href="/songs/${song.gameSongId}"`)
     expect(text.match(/class="box daily-song"/g)).toHaveLength(4)
     expect(text.match(/class="daily-panel-title">ソロ</g)).toHaveLength(4)
@@ -374,9 +384,8 @@ describe('daily page', () => {
     const [yesterdaySong] = await dailySongs(env.DB, '2026-10-13')
     const yref = (await env.DB.prepare('SELECT id FROM song WHERE game_song_id = ?').bind(yesterdaySong!.gameSongId).first<{ id: number }>())!.id
     await insertPlay({ playId: 'yesterday', songRefId: yref, score: 500, participants: solo(4, '昨日の人'), receivedAt: '2026-10-13T10:00:00.000Z' })
-    const yesterday = await html('/daily?day=yesterday')
-    expect(yesterday).toContain('10/13(火)')
-    expect(yesterday).toMatch(/class="chip active" href="\/daily\?day=yesterday" aria-current="page"/)
+    const yesterday = await html('/daily?date=2026-10-13')
+    expect(yesterday).toMatch(/class="chip active num" href="\/daily\?date=2026-10-13" aria-current="page">10\/13</)
     expect(yesterday).toContain('昨日の人')
     expect(yesterday).not.toContain('当日の人')
   })
@@ -406,8 +415,32 @@ describe('daily page', () => {
     expect(soloPanel).not.toContain('class="entry-players"')
   })
 
-  it('rejects other days', async () => {
-    expect(await html('/daily?day=tomorrow', 400)).toContain('dayはyesterdayだけ指定できます')
+  it('caches past days for 6 hours but not today', async () => {
+    const solo1 = solo(0, '最初の人')
+    const songOf = async (date: string) => {
+      const [s1] = await dailySongs(env.DB, date)
+      return (await env.DB.prepare('SELECT id FROM song WHERE game_song_id = ?').bind(s1!.gameSongId).first<{ id: number }>())!.id
+    }
+    // 昨日（10/13）の記録は、昨日の画面を一度開いた後に入っても6時間は出ない
+    const past = await songOf('2026-10-13')
+    expect(await html('/daily?date=2026-10-13')).not.toContain('最初の人')
+    await insertPlay({ playId: 'late', songRefId: past, score: 1, participants: solo1, receivedAt: '2026-10-13T10:00:00.000Z' })
+    expect(await html('/daily?date=2026-10-13')).not.toContain('最初の人')
+    vi.setSystemTime(new Date(Date.parse(NOW_UTC) + DAILY_PAST_CACHE_TTL_MS + 1))
+    expect(await html('/daily?date=2026-10-13')).toContain('最初の人')
+
+    // 今日の記録はすぐ出る
+    vi.setSystemTime(new Date(NOW_UTC))
+    const today = await songOf('2026-10-14')
+    expect(await html('/daily')).not.toContain('今日の人')
+    await insertPlay({ playId: 'now', songRefId: today, score: 1, participants: solo(1, '今日の人'), receivedAt: '2026-10-14T01:00:00.000Z' })
+    expect(await html('/daily')).toContain('今日の人')
+  })
+
+  it('rejects dates outside the 7 days', async () => {
+    for (const date of ['2026-10-07', '2026-10-15', '2026-10-1', 'yesterday']) {
+      expect(await html(`/daily?date=${date}`, 400), date).toContain('dateは2026-10-08〜2026-10-14の日付（YYYY-MM-DD）にしてください')
+    }
   })
 })
 

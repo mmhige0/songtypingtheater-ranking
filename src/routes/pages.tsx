@@ -2,12 +2,12 @@ import { Hono, type Context } from 'hono'
 import { raw } from 'hono/html'
 import type { Child } from 'hono/jsx'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
-import { addDays, DAILY_GROUPS, dailySongs, jstDate, jstDayRange } from '../lib/daily'
-import { ApiError, invalidRequest } from '../lib/http'
+import { dailySongs, fetchDailyRankings, jstDate, parseDailyDate } from '../lib/daily'
+import { ApiError } from '../lib/http'
 import { limitByIp } from '../lib/rate-limit'
 import { isTopHost } from '../lib/site-host'
 import { fetchPopularSongs } from '../lib/popular-songs'
-import { fetchBestScores, fetchGroupRankings, fetchRankings } from '../lib/ranking'
+import { fetchBestScores, fetchRankings } from '../lib/ranking'
 import { findApprovedSong, searchSongs } from '../lib/song-query'
 import {
   PLAYER_COUNTS,
@@ -35,8 +35,6 @@ const SONG_LIST_LIMIT = 100
 // 曲別ランキングで人数ごとに表示する件数。超えた分は人数別ページで見る
 const SONG_RANKING_LIMIT = 10
 const PLAYER_RANKING_LIMIT = 50
-// 今日の曲でソロ・マルチそれぞれに表示する件数
-const DAILY_RANKING_LIMIT = 3
 
 const render = (c: Context, page: Child, status: ContentfulStatusCode = 200) =>
   c.html(
@@ -158,31 +156,10 @@ pages.get('/songs/:gameSongId/players/:players', async (c) => {
   )
 })
 
-// 今日の曲。dayを指定しなければ今日、yesterdayなら昨日
+// 今日の曲。dateで今日を含む7日間の日付を選ぶ（指定なしは今日）
 pages.get(DAILY_PATH, async (c) => {
-  const dayParam = c.req.query('day')
-  if (dayParam !== undefined && dayParam !== '' && dayParam !== 'yesterday') {
-    throw invalidRequest('dayはyesterdayだけ指定できます')
-  }
-  const day = dayParam === 'yesterday' ? 'yesterday' : 'today'
   const today = jstDate(Date.now())
-  const date = day === 'yesterday' ? addDays(today, -1) : today
-  const received = jstDayRange(date)
-  const songs = await dailySongs(c.env.DB, date)
-  const rankings = await Promise.all(
-    songs.map((song) =>
-      fetchGroupRankings(c.env.DB, song.id, DAILY_GROUPS, { fullComboOnly: false, name: null, received }, {
-        limit: DAILY_RANKING_LIMIT,
-        offset: 0,
-      }),
-    ),
-  )
-  return render(
-    c,
-    <DailyPage
-      day={day}
-      date={date}
-      songs={songs.map((song, i) => ({ song, rankings: rankings[i]! }))}
-    />,
-  )
+  const date = parseDailyDate(c.req.query('date'), today)
+  const songs = await fetchDailyRankings(c.env.DB, date, today)
+  return render(c, <DailyPage date={date} today={today} songs={songs} />)
 })

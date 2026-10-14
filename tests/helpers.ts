@@ -1,4 +1,5 @@
 import { env } from 'cloudflare:workers'
+import { clearDailyCache } from '../src/lib/daily'
 import { clearPopularSongsCache } from '../src/lib/popular-songs'
 import { clearSongCache } from '../src/lib/song-query'
 
@@ -6,6 +7,7 @@ import { clearSongCache } from '../src/lib/song-query'
 export const resetDb = () => {
   clearSongCache()
   clearPopularSongsCache()
+  clearDailyCache()
   return env.DB.batch(
     ['play_participant', 'play', 'legacy_identity_mapping', 'player', 'song'].map((table) =>
       env.DB.prepare(`DELETE FROM ${table}`),

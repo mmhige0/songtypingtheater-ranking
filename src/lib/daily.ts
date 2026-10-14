@@ -1,3 +1,5 @@
+import { invalidRequest } from './http'
+import { fetchGroupRankings, type GroupRankingPage } from './ranking'
 import { listApprovedSongs, type SongSummary } from './song-query'
 
 // 今日の曲。日付は日本時間の「YYYY-MM-DD」で、0時に切り替わる
@@ -6,11 +8,16 @@ const JST_OFFSET_MS = 9 * 60 * 60 * 1000
 const DAY_MS = 24 * 60 * 60 * 1000
 
 export const DAILY_SONG_COUNT = 4
-// ランキングはソロ（1人）とマルチ（2〜4人をまとめた順位）に分ける
+// ランキングはソロ（1人）とマルチ（2〜4人をまとめた順位）に分け、それぞれ上位DAILY_RANKING_LIMIT件
 export const DAILY_GROUPS = [
   { label: 'ソロ', min: 1, max: 1 },
   { label: 'マルチ', min: 2, max: 4 },
 ] as const
+export const DAILY_RANKING_LIMIT = 3
+// 今日を含めて選べる日数
+export const DAILY_HISTORY_DAYS = 7
+// 昨日以前の記録は増えない（受付日時はサーバーの受付時刻）ため長めに保持する。除外の反映は最大TTLの間遅れる
+export const DAILY_PAST_CACHE_TTL_MS = 6 * 60 * 60 * 1000
 
 export const jstDate = (now: number) => new Date(now + JST_OFFSET_MS).toISOString().slice(0, 10)
 
@@ -57,3 +64,50 @@ export const dailySongs = async (db: D1Database, date: string): Promise<SongSumm
   pickDailySongs(await listApprovedSongs(db), date, DAILY_SONG_COUNT).map(
     ({ id, gameSongId, title, artist, level }) => ({ id, gameSongId, title, artist, level }),
   )
+
+// 選べる日付。今日から新しい順にDAILY_HISTORY_DAYS日
+export const dailyDates = (today: string) => Array.from({ length: DAILY_HISTORY_DAYS }, (_, i) => addDays(today, -i))
+
+// 指定なしなら今日。YYYY-MM-DDで、選べる日付のどれかでなければ400
+export const parseDailyDate = (value: string | undefined, today: string) => {
+  if (value === undefined || value === '') return today
+  if (!dailyDates(today).includes(value)) {
+    throw invalidRequest(`dateは${addDays(today, 1 - DAILY_HISTORY_DAYS)}〜${today}の日付（YYYY-MM-DD）にしてください`)
+  }
+  return value
+}
+
+export type DailyRanking = { song: SongSummary; rankings: GroupRankingPage[] }
+
+// 昨日以前の分だけisolateのメモリに保持する（今日の分は記録が入るとすぐ出す）
+const pastCache = new Map<string, { songs: DailyRanking[]; expiresAt: number }>()
+
+// テスト用。DBの中身を入れ替えたときに呼ぶ
+export const clearDailyCache = () => pastCache.clear()
+
+// その日の曲と、その日に受け付けた記録だけのランキング（rankingsはDAILY_GROUPSと同じ順）
+export const fetchDailyRankings = async (db: D1Database, date: string, today: string): Promise<DailyRanking[]> => {
+  const cached = pastCache.get(date)
+  if (date < today && cached && Date.now() < cached.expiresAt) return cached.songs
+
+  const received = jstDayRange(date)
+  const songs = await dailySongs(db, date)
+  const rankings = await Promise.all(
+    songs.map((song) =>
+      fetchGroupRankings(db, song.id, DAILY_GROUPS, { fullComboOnly: false, name: null, received }, {
+        limit: DAILY_RANKING_LIMIT,
+        offset: 0,
+      }),
+    ),
+  )
+  const result = songs.map((song, i) => ({ song, rankings: rankings[i]! }))
+  if (date < today) {
+    const now = Date.now()
+    // 期限切れと選べなくなった日付を捨てる
+    for (const [key, entry] of pastCache) {
+      if (now >= entry.expiresAt || !dailyDates(today).includes(key)) pastCache.delete(key)
+    }
+    pastCache.set(date, { songs: result, expiresAt: now + DAILY_PAST_CACHE_TTL_MS })
+  }
+  return result
+}
