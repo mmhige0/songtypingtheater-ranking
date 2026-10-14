@@ -8,7 +8,7 @@ export const POPULAR_SONG_LIMIT = 5
 // 期間は日付が変わるまで同じなので、isolateのメモリに保持する。除外の反映は最大TTLの間遅れる
 export const POPULAR_SONGS_CACHE_TTL_MS = 60 * 60 * 1000
 
-export type PopularSong = { rank: number; gameSongId: string; title: string; plays: number }
+export type PopularSong = { rank: number; gameSongId: string; title: string; artist: string | null }
 export type PopularSongs = {
   // 期間の最初と最後の日付（日本時間の「YYYY-MM-DD」）
   firstDate: string
@@ -29,7 +29,7 @@ const queryPopularSongs = async (db: D1Database, from: string, to: string, limit
          WHERE ${COUNTED}
          GROUP BY p.song_ref_id
        )
-       SELECT RANK() OVER (ORDER BY c.plays DESC) AS rank, c.plays, s.game_song_id AS gameSongId, s.title
+       SELECT RANK() OVER (ORDER BY c.plays DESC) AS rank, s.game_song_id AS gameSongId, s.title, s.artist
        FROM counted AS c JOIN song AS s ON s.id = c.song_ref_id AND s.status = 'approved'
        ORDER BY rank, c.last_at DESC, s.id
        LIMIT ?3`,

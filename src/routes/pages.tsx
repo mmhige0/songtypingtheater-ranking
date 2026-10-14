@@ -183,7 +183,6 @@ pages.get(DAILY_PATH, async (c) => {
       day={day}
       date={date}
       songs={songs.map((song, i) => ({ song, rankings: rankings[i]! }))}
-      limit={DAILY_RANKING_LIMIT}
     />,
   )
 })

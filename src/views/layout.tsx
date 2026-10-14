@@ -353,15 +353,22 @@ table.ranking { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .popular-list { margin: 0; padding: 0; overflow: hidden; list-style: none; }
 .popular-list li + li { border-top: 1px solid hsl(var(--border-subtle)); }
 .popular-row {
-  display: grid; grid-template-columns: 2.75rem minmax(0, 1fr) auto; align-items: center; gap: 12px;
+  display: grid; grid-template-columns: 2.75rem 4.5rem minmax(0, 3fr) minmax(0, 2fr); align-items: baseline; gap: 4px 12px;
   padding: 12px 16px; color: hsl(var(--foreground)); text-decoration: none;
 }
 .popular-row:hover { background: hsl(var(--primary) / .07); }
-.popular-row:hover .popular-label { color: hsl(var(--primary)); }
+.popular-row:hover .popular-title { color: hsl(var(--primary)); }
 .popular-rank { font-weight: 700; text-align: right; white-space: nowrap; }
 .popular-rank.rank-1 { color: hsl(var(--primary)); }
-.popular-label { overflow: hidden; font-weight: 600; text-overflow: ellipsis; white-space: pre; }
-.popular-plays { font-weight: 700; white-space: nowrap; }
+.popular-no { font-size: .875rem; font-weight: 600; color: hsl(var(--muted-foreground)); white-space: nowrap; }
+.popular-title, .popular-artist { overflow: hidden; text-overflow: ellipsis; white-space: pre; }
+.popular-title { font-weight: 600; }
+.popular-artist { font-size: .875rem; color: hsl(var(--secondary-foreground)); }
+/* 狭い画面はアーティスト名を曲名の下に出す */
+@media (max-width: 639px) {
+  .popular-row { grid-template-columns: 2.5rem 4rem minmax(0, 1fr); }
+  .popular-artist { grid-column: 3; }
+}
 
 /* クレジット（LyricDataCreatorのCreditsSection） */
 .credits { margin-top: 64px; padding-top: 32px; border-top: 1px solid hsl(var(--border)); }

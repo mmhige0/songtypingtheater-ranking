@@ -35,9 +35,9 @@ export const DAILY_PATH = '/daily'
 
 const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土']
 
-// 「2026-10-14」を「10/14（水）」にする
+// 「2026-10-14」を「10/14(水)」にする
 const formatDate = (date: string) =>
-  `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}（${WEEKDAYS[new Date(`${date}T00:00:00Z`).getUTCDay()]}）`
+  `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}(${WEEKDAYS[new Date(`${date}T00:00:00Z`).getUTCDay()]})`
 
 const songPath = (gameSongId: string) => `/songs/${encodeURIComponent(gameSongId)}`
 
@@ -89,7 +89,7 @@ const TopCard = ({ href, title, accent = false, children }: { href: string; titl
   </a>
 )
 
-// 人気曲。行全体がその曲のランキングへのリンク
+// 人気曲。順位・曲番・曲名・アーティスト名の順。行全体がその曲のランキングへのリンク
 const PopularSongList = ({ songs, rankingOrigin }: { songs: PopularSongs['songs']; rankingOrigin: string }) =>
   songs.length === 0 ? (
     <p class="empty-box">記録はまだありません</p>
@@ -99,10 +99,13 @@ const PopularSongList = ({ songs, rankingOrigin }: { songs: PopularSongs['songs'
         <li>
           <a class="popular-row" href={`${rankingOrigin}${songPath(song.gameSongId)}`}>
             <span class={song.rank === 1 ? 'popular-rank rank-1 num' : 'popular-rank num'}>{song.rank}位</span>
-            <span class="popular-label" title={song.title}>
+            <span class="popular-no num">No.{song.gameSongId}</span>
+            <span class="popular-title" title={song.title}>
               {song.title}
             </span>
-            <span class="popular-plays num">{song.plays}回</span>
+            <span class="popular-artist" title={song.artist ?? undefined}>
+              {song.artist}
+            </span>
           </a>
         </li>
       ))}
@@ -435,10 +438,9 @@ export type DailyPageProps = {
   date: string
   // DAILY_GROUPSと同じ順のランキング
   songs: { song: SongSummary; rankings: GroupRankingPage[] }[]
-  limit: number
 }
 
-export const DailyPage = ({ day, date, songs, limit }: DailyPageProps) => (
+export const DailyPage = ({ day, date, songs }: DailyPageProps) => (
   <Layout title="今日の曲">
     <h1 class="page-title">今日の曲</h1>
     <div class="daily-head">
@@ -456,7 +458,6 @@ export const DailyPage = ({ day, date, songs, limit }: DailyPageProps) => (
       </nav>
       <p class="daily-date num">{formatDate(date)}</p>
     </div>
-    <p class="small muted">その日（日本時間の0時〜24時）に受け付けた記録だけで、ソロ・マルチ（2〜4人）それぞれ上位{limit}件を表示します</p>
 
     {songs.length === 0 ? (
       <p class="empty-box">曲はまだ登録されていません</p>
