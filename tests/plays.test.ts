@@ -1,6 +1,7 @@
 import { env } from 'cloudflare:workers'
 import { beforeEach, describe, expect, it } from 'vitest'
 import app from '../src/index'
+import { fetchBestScores } from '../src/lib/ranking'
 import { hashInstallationToken } from '../src/lib/token'
 import { resetDb } from './helpers'
 
@@ -263,6 +264,58 @@ describe('POST /api/v1/plays', () => {
 
     it('authenticates before reading the body', async () => {
       await expectError(await send('x'.repeat(20_000), { token: null }), 401, 'INVALID_TOKEN')
+    })
+  })
+
+  describe('song best (song_best)', () => {
+    const songRef = () => env.DB.prepare("SELECT id FROM song WHERE game_song_id = '001'").first<number>('id')
+    const best2 = async () => (await fetchBestScores(env.DB, [(await songRef())!])).get((await songRef())!)!['2']
+    const other = (playId: string, score: number, isFullCombo: boolean, members = [HOST, THIRD]) => ({
+      ...validBody(),
+      playId,
+      score,
+      isFullCombo,
+      players: [player(members[0]!, 'プレイヤーA', 'R'), player(members[1]!, 'プレイヤーC', 'B')],
+    })
+
+    it('updates the top of the song and player count with each stored play', async () => {
+      expect(await best2()).toBeNull()
+      expect((await send(validBody())).status).toBe(201)
+      expect(await best2()).toEqual({
+        score: 123456,
+        isFullCombo: true,
+        hasFullCombo: true,
+        participants: [
+          { name: 'プレイヤーA', color: 'R' },
+          { name: 'プレイヤーB', color: 'B' },
+        ],
+        tiedOthers: 0,
+      })
+
+      // 1位に届かない記録では1位は変わらない
+      expect((await send(other('b0e4a7c2-5d3f-4a1b-8c9d-0e1f2a3b4c5d', 100, false))).status).toBe(201)
+      expect(await best2()).toMatchObject({ score: 123456, tiedOthers: 0 })
+
+      // 別のチームの同点は同点の組数に数え、受付が早い方を代表にする
+      expect((await send(other('c1f5b8d3-6e4a-4b2c-9d0e-1f2a3b4c5d6e', 123456, false))).status).toBe(201)
+      expect(await best2()).toMatchObject({ score: 123456, tiedOthers: 1, participants: [{ name: 'プレイヤーA' }, { name: 'プレイヤーB' }] })
+
+      // 上回ればその記録が1位になる
+      expect((await send(other('d2a6c9e4-7f5b-4c3d-8e1f-2a3b4c5d6e7f', 200000, false))).status).toBe(201)
+      expect(await best2()).toMatchObject({
+        score: 200000,
+        isFullCombo: false,
+        hasFullCombo: true,
+        tiedOthers: 0,
+        participants: [{ name: 'プレイヤーA' }, { name: 'プレイヤーC' }],
+      })
+    })
+
+    it('does not touch the top on a resend', async () => {
+      await send(validBody())
+      const before = await env.DB.prepare('SELECT updated_at FROM song_best').first('updated_at')
+      expect((await send(validBody())).status).toBe(200)
+      expect(await env.DB.prepare('SELECT updated_at FROM song_best').first('updated_at')).toBe(before)
     })
   })
 })

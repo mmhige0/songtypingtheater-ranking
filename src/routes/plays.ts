@@ -5,6 +5,7 @@ import { isDuplicateKeyError } from '../db/errors'
 import { PLAYER_COLORS, playParticipants, players, plays, songs } from '../db/schema'
 import { ApiError, expectExactObject, invalidRequest, readJsonBody } from '../lib/http'
 import { requirePlayerToken, type PlayerAuthVariables } from '../lib/player-auth'
+import { songBestRefreshStatements } from '../lib/song-best'
 import { limitByIp, limitByPlayer } from '../lib/rate-limit'
 import { isValidGameSongId } from '../lib/song'
 import { toTeamKey } from '../lib/team-key'
@@ -144,9 +145,14 @@ playsRoute.post('/', async (c) => {
   }
 
   const receivedAt = new Date().toISOString()
+  // Drizzleで組み立てた文をD1のバッチ（1トランザクション）にそのまま入れ、保存と同時にその曲・人数の1位を作り直す
+  const toStatement = (query: { toSQL(): { sql: string; params: unknown[] } }) => {
+    const { sql, params } = query.toSQL()
+    return c.env.DB.prepare(sql).bind(...params)
+  }
   try {
-    await db.batch([
-      db.insert(plays).values({
+    await c.env.DB.batch([
+      toStatement(db.insert(plays).values({
         playId: input.playId,
         songRefId: song.id,
         score: input.score,
@@ -157,15 +163,16 @@ playsRoute.post('/', async (c) => {
         hostPlayerId: input.hostPlayerId,
         playerCount: input.players.length,
         teamKey: toTeamKey(playerIds),
-      }),
-      db.insert(playParticipants).values(
+      })),
+      toStatement(db.insert(playParticipants).values(
         input.players.map((p) => ({
           playId: input.playId,
           playerId: p.playerId,
           nameAtPlay: p.name,
           colorAtPlay: p.color,
         })),
-      ),
+      )),
+      ...songBestRefreshStatements(c.env.DB, song.id, input.players.length, receivedAt),
     ])
   } catch (error) {
     // 同時に届いた再送で先に保存された場合

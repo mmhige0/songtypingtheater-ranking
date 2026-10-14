@@ -171,56 +171,24 @@ export type BestScores = { '1': SoloBestScore | null; '2': BestScore | null; '3'
 type BestRow = {
   song_ref_id: number
   player_count: number
-  play_id: string
   score: number
   is_full_combo: number | null
   has_full_combo: number
   tied_others: number
-  name_at_play: string
-  color_at_play: PlayerColor
+  participants: string
 }
 
-// 曲ごと・人数ごとのランキング1位。songRefIdsは100件以内
+// 曲ごと・人数ごとのランキング1位。集計済みのsong_best（src/lib/song-best.ts）を読む。songRefIdsは100件以内
 export const fetchBestScores = async (db: D1Database, songRefIds: number[]): Promise<Map<number, BestScores>> => {
   const bestBySong = new Map<number, BestScores>(
     songRefIds.map((id) => [id, { '1': null, '2': null, '3': null, '4': null }]),
   )
   if (songRefIds.length === 0) return bestBySong
 
-  // 1位の得点の記録からteamKeyごとに代表記録を選び（得点は同じなのでFC → 受付日時 → playId）、
-  // ランキングの表示順（受付日時 → playId）で先頭の記録と同点の組数を、曲・人数ごとに1件選ぶ。参加者は1行ずつ返す。
-  // FCの有無は1位の得点と同じ走査で数え、読み取り行数を増やさない
   const { results } = await db
     .prepare(
-      `WITH top AS (
-         SELECT song_ref_id, player_count, MAX(score) AS score, MAX(is_full_combo IS 1) AS has_full_combo FROM play
-         WHERE song_ref_id IN (${songRefIds.map(() => '?').join(', ')}) AND excluded_at IS NULL
-         GROUP BY song_ref_id, player_count
-       ),
-       representative AS (
-         SELECT p.song_ref_id, p.player_count, p.play_id, p.is_full_combo, p.received_at,
-           ROW_NUMBER() OVER (
-             PARTITION BY p.song_ref_id, p.player_count, p.team_key
-             ORDER BY p.is_full_combo IS 1 DESC, p.received_at, p.play_id
-           ) AS team_order
-         FROM play AS p
-           JOIN top AS t ON t.song_ref_id = p.song_ref_id AND t.player_count = p.player_count AND t.score = p.score
-         WHERE p.excluded_at IS NULL
-       ),
-       ordered AS (
-         SELECT song_ref_id, player_count, play_id, is_full_combo,
-           ROW_NUMBER() OVER (PARTITION BY song_ref_id, player_count ORDER BY received_at, play_id) AS position,
-           COUNT(*) OVER (PARTITION BY song_ref_id, player_count) AS teams
-         FROM representative
-         WHERE team_order = 1
-       )
-       SELECT o.song_ref_id, o.player_count, o.play_id, t.score, o.is_full_combo, t.has_full_combo,
-         o.teams - 1 AS tied_others,
-         pp.name_at_play, pp.color_at_play
-       FROM ordered AS o
-         JOIN top AS t ON t.song_ref_id = o.song_ref_id AND t.player_count = o.player_count
-         JOIN play_participant AS pp ON pp.play_id = o.play_id
-       WHERE o.position = 1`,
+      `SELECT song_ref_id, player_count, score, is_full_combo, has_full_combo, tied_others, participants
+       FROM song_best WHERE song_ref_id IN (${songRefIds.map(() => '?').join(', ')})`,
     )
     .bind(...songRefIds)
     .all<BestRow>()
@@ -228,23 +196,18 @@ export const fetchBestScores = async (db: D1Database, songRefIds: number[]): Pro
   for (const row of results) {
     const best = bestBySong.get(row.song_ref_id)
     if (!best || !PLAYER_COUNTS.includes(row.player_count as PlayerCount)) continue
-    const key = String(row.player_count) as keyof BestScores
-    const entry = best[key] ?? {
+    const participants = (JSON.parse(row.participants) as Participant[]).sort(
+      (a, b) => COLOR_ORDER.get(a.color)! - COLOR_ORDER.get(b.color)!,
+    )
+    const entry: BestScore = {
       score: row.score,
       isFullCombo: toBoolean(row.is_full_combo),
       hasFullCombo: row.has_full_combo === 1,
-      participants: [],
+      participants,
       tiedOthers: row.tied_others,
     }
-    entry.participants.push({ name: row.name_at_play, color: row.color_at_play })
-    best[key] = entry as SoloBestScore
-  }
-
-  for (const best of bestBySong.values()) {
-    for (const entry of Object.values(best) as (BestScore | null)[]) {
-      entry?.participants.sort((a, b) => COLOR_ORDER.get(a.color)! - COLOR_ORDER.get(b.color)!)
-    }
-    if (best['1']) best['1'].name = best['1'].participants[0]!.name
+    if (row.player_count === 1) best['1'] = { ...entry, name: participants[0]!.name }
+    else best[String(row.player_count) as '2' | '3' | '4'] = entry
   }
   return bestBySong
 }

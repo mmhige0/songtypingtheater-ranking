@@ -10,7 +10,8 @@ DB製品に依存しない概念設計。テーブル名・型は提案。物理
 | Player | playerId、tokenHash、revokedAt、createdAt | 新規はセーブデータのUUIDv4。旧記録は`legacy-`で始まる内部専用ID。playerId自体は認証情報ではない。tokenHashはクライアント生成tokenの個別送信認証で、null許容・null以外は一意。正規token文字列のUTF-8に対するSHA-256のみ保存し、平文・復元可能な暗号化tokenは保存しない。tokenHashがnullでないことを初回登録完了とみなす（移行用Playerは常にnull）。1プレイヤー1tokenのため別テーブルにしない |
 | Play | playId、songRefId、score、isFullCombo、isTaipen、receivedAt、gameVersion、hostPlayerId、playerCount、teamKey、excludedAt | 新規の全受理記録と移行で選んだ最高記録を保存。playIdは一意。APIのsongId（gameSongId）は受付時にSong.idへ変換してsongRefIdに保存する。FC・モード・バージョン・hostPlayerIdは移行用にnull許容。hostPlayerIdがnullの記録を移行分とみなす（APIはhostPlayerIdを必須とするため）。teamKeyは必須の文字列列で、参加者IDから生成して保存する（非一意） |
 | PlayParticipant | playId、playerId、nameAtPlay、colorAtPlay | プレイ当時の名前・色を保持。colorAtPlayは必須。playId+playerIdとplayId+colorAtPlayをそれぞれ一意にする。表示順は色のR→B→Y→Gで決め、受信順は保存しない |
-| LegacyIdentityMapping | 移行用playerId、対応する新playerId、確認状態 | 確認できた旧IDと新IDの対応だけを管理する。名前一致だけの自動紐付けはしない |
+| SongBest | songRefId、playerCount、score、isFullCombo、hasFullCombo、tiedOthers、participants、updatedAt | 曲・人数ごとのランキング1位の集計結果（曲一覧・閲覧APIが読む）。songRefId+playerCountを主キーとし、記録のない組み合わせの行は持たない。hasFullComboは1位に限らずFCの記録があるか、participantsは1位の組の記録時点の名前と色。記録の受付時に保存と同じトランザクションで作り直す。記録を直接変えたとき（除外、旧IDの紐付けの反映、旧記録の取り込み直し）も作り直す |
+| LegacyIdentityMapping | 移行用playerId、対応する新playerId、確認状態 | 確認できた旧IDと新IDの対応だけを管理する。名前一致だけの自動紐付けはしない。対応を記録に反映するとチームのまとまりが変わるため、反映後にSongBestを作り直す |
 
 ## 曲マスター
 
@@ -40,6 +41,7 @@ receivedAtで先着を判定する。実際の達成順とは限らない。
 
 ゲームバージョンは分類キーにしない。譜面修正後も既存のランキングに残す。
 除外記録は代表選択から外す。保存方式・索引は、件数に応じて決める。最初から別の集計DBを必須にしない。
+曲一覧の1位は表示のたびに集計するとD1の読み取りが1ページ約1万行になったため、SongBestに集計結果を持つ。除外や旧IDの紐付けを反映する処理を作るときは、該当する曲・人数（または全体）のSongBestを作り直すこと（`src/lib/song-best-sql.ts`）。
 
 ## 保存・再送の整合性
 
