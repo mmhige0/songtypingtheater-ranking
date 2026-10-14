@@ -149,7 +149,12 @@ export const TopPage = ({ today, dailySongs, popular }: TopPageProps) => {
     <Layout title="" subtitle={false}>
       <div class="top">
         <nav class="top-cards" aria-label="メニュー">
-          {/* lucideのEdit3・Keyboard・Trophy */}
+          {/* lucideのTrophy・Edit3・Keyboard */}
+          <TopCard href={`${site.ranking}${SONG_LIST_PATH}`} title="ランキング">
+            <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18M4 22h16" />
+            <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" />
+            <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" />
+          </TopCard>
           <TopCard href={`${LDC_ORIGIN}/editor`} title="歌詞データ作成">
             <path d="M12 20h9" />
             <path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z" />
@@ -157,11 +162,6 @@ export const TopPage = ({ today, dailySongs, popular }: TopPageProps) => {
           <TopCard href={`${LDC_ORIGIN}/songs`} title="練習" accent>
             <path d="M10 8h.01M12 12h.01M14 8h.01M16 12h.01M18 8h.01M6 8h.01M7 16h10M8 12h.01" />
             <rect width="20" height="16" x="2" y="4" rx="2" />
-          </TopCard>
-          <TopCard href={`${site.ranking}${SONG_LIST_PATH}`} title="ランキング">
-            <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18M4 22h16" />
-            <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" />
-            <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" />
           </TopCard>
         </nav>
 
@@ -328,12 +328,6 @@ const BestCell = ({ song, count, best }: { song: SongSummary; count: PlayerCount
 
 export const SongListPage = ({ songs, q, levelRange, sort, dir, page, limit, total }: SongListProps) => (
   <Layout title="">
-    <div class="page-head">
-      <h1 class="page-title">ランキング</h1>
-      <a class="button button-outline" href={DAILY_PATH}>
-        今日の曲
-      </a>
-    </div>
     <form id="song-search" class="box filters" method="get" action={SONG_LIST_PATH} role="search" data-live="song-results">
       <span id="sort-state" data-sync>
         {sort !== 'id' && <input type="hidden" name="sort" value={sort} />}

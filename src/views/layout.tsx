@@ -95,7 +95,6 @@ main { max-width: 1400px; margin: 0 auto; padding: 24px 16px 48px; }
 
 /* 部品（LyricDataCreatorのshadcn/ui部品と同じ寸法） */
 .page-title { font-size: 1.875rem; line-height: 1.2; overflow-wrap: anywhere; white-space: pre-wrap; }
-.page-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
 .page-meta { margin: 8px 0 0; color: hsl(var(--muted-foreground)); font-size: .9375rem; }
 .box {
   border: 1px solid hsl(var(--border)); border-radius: 16px; background: hsl(var(--card));

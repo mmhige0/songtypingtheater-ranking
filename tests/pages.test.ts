@@ -58,6 +58,9 @@ describe('top page', () => {
     expect(text).toContain('href="https://ldc.kayomodoki.com/editor"')
     expect(text).toContain('href="https://ldc.kayomodoki.com/songs"')
     expect(text).toContain(`href="${RANKING}/songs"`)
+    // ランキング → 歌詞データ作成 → 練習
+    const cards = [...text.matchAll(/<a class="top-card" href="([^"]*)"/g)].map((m) => m[1])
+    expect(cards).toEqual([`${RANKING}/songs`, 'https://ldc.kayomodoki.com/editor', 'https://ldc.kayomodoki.com/songs'])
     expect(text).toContain('クレジット')
     expect(text).toContain('href="https://ytyping.net/" target="_blank" rel="noopener noreferrer"')
     expect(text).not.toContain('新着記録')
@@ -185,7 +188,7 @@ describe('song list page', () => {
     expect(text).toContain('123,456')
     expect(text).toContain('ソロの人')
     expect(text).toContain('href="/songs/001?players=1"')
-    expect(text).toContain('<h1 class="page-title">ランキング</h1>')
+    expect(text).not.toContain('<h1')
     // No.・曲名・Lv.の3セルがどれも曲別ランキングへのリンク（Tab移動は曲名だけ）
     expect(text.match(/class="cell-link[^"]*" href="\/songs\/001"/g)).toHaveLength(3)
     expect(text.match(/href="\/songs\/001" tabindex="-1" aria-hidden="true"/g)).toHaveLength(2)
@@ -342,7 +345,7 @@ describe('daily page', () => {
 
   const solo = (i: number, name: string) => [{ id: IDS[i]!, name, color: 'R' as const }]
 
-  it('shows four songs of the day and links to it from the song list', async () => {
+  it('shows four songs of the day, linked only from the top', async () => {
     const picked = await dailySongs(env.DB, '2026-10-14')
     expect(picked).toHaveLength(4)
     const text = await html('/daily')
@@ -364,7 +367,7 @@ describe('daily page', () => {
     expect(text.match(/class="daily-panel-title">ソロ</g)).toHaveLength(4)
     expect(text.match(/class="daily-panel-title">マルチ</g)).toHaveLength(4)
     expect(text).toContain('記録なし')
-    expect(await html('/songs')).toContain('href="/daily"')
+    expect(await html('/songs')).not.toContain('href="/daily"')
   })
 
   it('ranks only the records received on that day in Japan time', async () => {
