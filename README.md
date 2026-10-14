@@ -85,13 +85,24 @@ curl -X PUT "https://ranking.kayomodoki.com/api/v1/admin/songs/<曲番>" \
 結合テストは本番環境で行う。ゲーム公開前に、テストで登録された成績を削除する。曲（song）と初回登録したプレイヤーは残す。
 
 ```sh
-npx wrangler d1 execute DB --remote --command "DELETE FROM play_participant; DELETE FROM play; DELETE FROM legacy_identity_mapping; DELETE FROM player WHERE token_hash IS NULL;"
+npx wrangler d1 execute DB --remote --command "DELETE FROM song_best; DELETE FROM play_participant; DELETE FROM play; DELETE FROM legacy_identity_mapping; DELETE FROM player WHERE token_hash IS NULL;"
 npx wrangler d1 execute DB --remote --command "SELECT (SELECT COUNT(*) FROM song) AS songs, (SELECT COUNT(*) FROM player) AS players, (SELECT COUNT(*) FROM player WHERE token_hash IS NOT NULL) AS registered_players, (SELECT COUNT(*) FROM play) AS plays"
 ```
 
 - 外部キーのため、この順序で削除する。誤って削除した場合はD1 Time Travelで7日以内に戻せる。
 - 初回登録したプレイヤー（tokenHashあり。失効済みを含む）は、テスト端末のIDを公開後も使えるよう残す。playersとregistered_playersが一致することを確認する。削除した場合、その端末は保存済みの同じplayerId・tokenで初回登録（`POST /api/v1/installations`）を送り直せば再登録できる。
 - 旧記録の移行より**前**に行う。移行後に実行すると移行した記録も消える（順序: テストデータ削除 → 旧記録の移行 → ゲーム公開）。
+
+## 曲一覧の1位の作り直し
+
+曲一覧・閲覧APIの人数ごとの1位は、集計済みの`song_best`を読む。記録の受付時には自動で更新されるが、記録を直接変えたとき（除外、旧IDと新IDの紐付けの反映、SQLでの修正・削除）は作り直す。旧記録の移行SQLには作り直しが含まれている。
+
+```sh
+npm run rebuild-song-best -- --out imports/rebuild-song-best.sql
+npx wrangler d1 execute DB --remote --file imports/rebuild-song-best.sql
+```
+
+- D1の書き込みは`song_best`の行数（最大で曲数×4）の4倍程度（全行の削除と挿入、表と主キーの索引）。読み取りは全記録分。
 
 ## 旧記録の移行
 

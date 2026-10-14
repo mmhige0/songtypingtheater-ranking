@@ -1,5 +1,6 @@
 // 旧スプレッドシートの曲別ランキング表から移行用SQLを作る変換処理（入出力を持たない純粋関数）。
 // 規則はdocs/data-design.mdの「移行（確定）」を参照。テストからも使うためNode.js固有のAPIに依存しない
+import { SONG_BEST_REBUILD_SQL } from '../src/lib/song-best-sql'
 import { toTeamKey } from '../src/lib/team-key'
 
 // セルの値。数式は計算結果、リッチテキストは連結済みの文字列で渡す。#REF!等はerror
@@ -182,10 +183,13 @@ const chunk = <T>(items: readonly T[], size: number) =>
   Array.from({ length: Math.ceil(items.length / size) }, (_, i) => items.slice(i * size, (i + 1) * size))
 
 // D1の1日の書き込み行数の上限（10万行、UTC 0時リセット）に収まるよう、移行用SQLを日ごとに適用するファイルに分ける。
-// 書き込み行数は索引の更新も数えるため、1行あたりの書き込み行数は本番のD1 insightsでの実測値（表＋索引の数）
+// 書き込み行数は索引の更新も数えるため、1行あたりの書き込み行数は本番のD1 insightsでの実測値（表＋索引の数）。
+// playは実測の4に、その後に足した受付日時の索引（0001）の1を加えた
 const WRITES_PER_PLAYER = 3
-const WRITES_PER_PLAY = 4
+const WRITES_PER_PLAY = 5
 const WRITES_PER_PARTICIPANT = 4
+// 各ファイルの最後でsong_best（曲・人数ごとの1位）を全曲分作り直す。全行の削除と挿入で、表＋主キーの索引の分
+const WRITES_PER_SONG_BEST = 4
 // 1ファイルの書き込み見込みの上限。通常の利用分（1日数百〜千行）の余裕を残す
 export const MAX_WRITES_PER_PART = 80_000
 
@@ -227,7 +231,9 @@ export const buildSqlParts = (
 ): SqlPart[] => {
   const at = sqlString(receivedAt)
   const playerWrites = WRITES_PER_PLAYER * playerIds.length
-  return splitPlays(plays, playerWrites, maxWrites).map((group, i) => {
+  // song_bestの行数は移行分の曲・人数の組み合わせの数で見込む（ゲームからの記録だけの組み合わせは少数のため含めない）
+  const songBestWrites = WRITES_PER_SONG_BEST * new Set(plays.map((p) => `${p.gameSongId}	${p.participants.length}`)).size
+  return splitPlays(plays, playerWrites, maxWrites - songBestWrites).map((group, i) => {
     const lines: string[] = []
     if (i === 0) {
       lines.push(
@@ -249,6 +255,8 @@ export const buildSqlParts = (
       }
     }
     lines.push(...insertPlays(group, at))
+    // 記録を直接変えたので、曲一覧が読む1位を作り直す（1行1文にする）
+    lines.push(...SONG_BEST_REBUILD_SQL.map((sql) => `${sql.replace(/\s+/g, ' ').trim()};`))
     const participants = group.reduce((n, p) => n + p.participants.length, 0)
     const players = i === 0 ? playerIds.length : 0
     return {
@@ -256,7 +264,7 @@ export const buildSqlParts = (
       plays: group.length,
       participants,
       players,
-      estimatedWrites: WRITES_PER_PLAYER * players + group.reduce((n, p) => n + playWrites(p), 0),
+      estimatedWrites: WRITES_PER_PLAYER * players + group.reduce((n, p) => n + playWrites(p), 0) + songBestWrites,
     }
   })
 }

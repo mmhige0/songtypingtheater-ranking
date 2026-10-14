@@ -252,6 +252,12 @@ describe('buildSqlParts', () => {
       }),
     ])
 
+    // 曲一覧が読む1位（song_best）も作り直される
+    const songs = (await (await app.request('/api/v1/songs', {}, env)).json()) as {
+      songs: { bestScores: Record<string, unknown> }[]
+    }
+    expect(songs.songs[0]!.bestScores['2']).toMatchObject({ score: 120, isFullCombo: null, tiedOthers: 0 })
+
     const play = await env.DB.prepare(
       "SELECT team_key, player_count, host_player_id, is_taipen, game_version FROM play WHERE score = 120",
     ).first()

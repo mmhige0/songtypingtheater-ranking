@@ -1,4 +1,5 @@
 import { env } from 'cloudflare:workers'
+import { songBestRefreshStatements } from '../src/lib/song-best'
 import { toTeamKey } from '../src/lib/team-key'
 
 // 閲覧系テスト用のデータ投入。架空の曲・ID・名前のみ使用
@@ -71,6 +72,8 @@ export const insertPlay = ({
         'INSERT INTO play_participant (play_id, player_id, name_at_play, color_at_play) VALUES (?, ?, ?, ?)',
       ).bind(playId, p.id, p.name, p.color),
     ),
+    // 記録の受付と同じく、その曲・人数の1位を作り直す
+    ...songBestRefreshStatements(env.DB, songRefId, participants.length, receivedAt),
   ])
 
 // 受付日時を秒単位でずらした値

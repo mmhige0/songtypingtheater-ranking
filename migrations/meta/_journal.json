@@ -15,6 +15,13 @@
       "when": 1791902737603,
       "tag": "0001_play_received_at_idx",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1791975964585,
+      "tag": "0002_song_best",
+      "breakpoints": true
     }
   ]
 }

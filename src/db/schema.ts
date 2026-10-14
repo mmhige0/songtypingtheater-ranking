@@ -97,6 +97,29 @@ export const playParticipants = sqliteTable(
   ],
 )
 
+// 曲・人数ごとのランキング1位（記録の集計結果）。曲一覧・閲覧APIはこれを読む。
+// 作り直しはsrc/lib/song-best.ts。記録のない曲・人数の行は持たない
+export const songBests = sqliteTable(
+  'song_best',
+  {
+    songRefId: integer('song_ref_id')
+      .notNull()
+      .references(() => songs.id),
+    playerCount: integer('player_count').notNull(),
+    score: integer('score').notNull(),
+    // 1位の記録のFC。nullは不明（移行分）
+    isFullCombo: integer('is_full_combo', { mode: 'boolean' }),
+    // その曲・人数の記録に1件でもFCがあるか
+    hasFullCombo: integer('has_full_combo', { mode: 'boolean' }).notNull(),
+    // 同点1位のほかの組数
+    tiedOthers: integer('tied_others').notNull(),
+    // 1位の組の参加者の[{name, color}]（記録時点の名前。色の順は問わない）
+    participants: text('participants').notNull(),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.songRefId, t.playerCount] })],
+)
+
 export const legacyIdentityMappings = sqliteTable(
   'legacy_identity_mapping',
   {
