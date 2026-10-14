@@ -2,12 +2,6 @@ import type { Participant, RankingEntry } from '../lib/ranking'
 
 export const formatScore = (score: number) => score.toLocaleString('en-US')
 
-// 受付日時（UTCのISO 8601）を日本時間の「2026/10/14 21:05」にする
-export const formatReceivedAt = (receivedAt: string) => {
-  const jst = new Date(Date.parse(receivedAt) + 9 * 60 * 60 * 1000).toISOString()
-  return `${jst.slice(0, 10).replace(/-/g, '/')} ${jst.slice(11, 16)}`
-}
-
 // 値がnull・空文字・falseの項目を除いてクエリ文字列を作る
 export const toQuery = (params: Record<string, string | number | boolean | null | undefined>) => {
   const search = new URLSearchParams()

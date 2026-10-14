@@ -1,4 +1,5 @@
-import type { BestScore, BestScores, RankingPage, RecentBest } from '../lib/ranking'
+import type { Activity } from '../lib/activity'
+import type { BestScore, BestScores, RankingPage } from '../lib/ranking'
 import type { Child } from 'hono/jsx'
 import type { SongSummary } from '../lib/song-query'
 import {
@@ -11,7 +12,6 @@ import {
   type SortDir,
 } from '../lib/view-query'
 import {
-  formatReceivedAt,
   formatScore,
   FullComboMark,
   LiveSearchScript,
@@ -30,6 +30,13 @@ import { LDC_ORIGIN, useSite } from './site'
 const pageParam = (page: number) => (page === 1 ? null : page)
 
 export const SONG_LIST_PATH = '/songs'
+export const DAILY_PATH = '/daily'
+
+const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土']
+
+// 「2026-10-14」を「10/14（水）」にする
+const formatDate = (date: string) =>
+  `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}（${WEEKDAYS[new Date(`${date}T00:00:00Z`).getUTCDay()]}）`
 
 const songPath = (gameSongId: string) => `/songs/${encodeURIComponent(gameSongId)}`
 
@@ -81,37 +88,45 @@ const TopCard = ({ href, title, accent = false, children }: { href: string; titl
   </a>
 )
 
-// 「3分前」等の表示はJSで書き換える。JSが無効なら日本時間の日時のまま
-const RELATIVE_TIME_SCRIPT = `(function(){var now=Date.now();
-document.querySelectorAll('time[data-relative]').forEach(function(el){var s=Math.max(0,(now-Date.parse(el.getAttribute('datetime')))/1000);
-var t=s<60?'たった今':s<3600?Math.floor(s/60)+'分前':s<86400?Math.floor(s/3600)+'時間前':s<86400*30?Math.floor(s/86400)+'日前':null;
-if(t)el.textContent=t})})()`
-
-const RecentBestRow = ({ best, rankingOrigin }: { best: RecentBest; rankingOrigin: string }) => (
-  <li class={best.isFullCombo === true ? 'recent full-combo' : 'recent'}>
-    <a class="recent-row" href={`${rankingOrigin}${songPath(best.gameSongId)}${toQuery({ players: best.playerCount })}`}>
-      <span class={best.rank === 1 ? 'recent-rank rank-1 num' : 'recent-rank num'}>{best.rank}位</span>
-      <span class="recent-song" title={best.title}>
-        {best.title}
-      </span>
-      <span class="recent-who">
-        <span class="recent-players small">{best.playerCount}人</span>
-        <Participants participants={best.participants} />
-      </span>
-      <span class="recent-score num">
-        {best.isFullCombo === true && <FullComboMark />}
-        {formatScore(best.score)}
-      </span>
-      <time
-        class="recent-time num"
-        datetime={best.receivedAt}
-        title={formatReceivedAt(best.receivedAt)}
-        data-relative=""
-      >
-        {formatReceivedAt(best.receivedAt)}
-      </time>
-    </a>
-  </li>
+// よく遊んだ人・よく遊ばれた曲の一覧。hrefがあれば行全体をリンクにする
+const ActivityList = ({
+  title,
+  rows,
+}: {
+  title: string
+  rows: { rank: number; label: string; plays: number; href?: string }[]
+}) => (
+  <section class="activity" aria-label={title}>
+    <h3 class="activity-title">{title}</h3>
+    {rows.length === 0 ? (
+      <p class="empty-box">記録はまだありません</p>
+    ) : (
+      <ol class="box activity-list">
+        {rows.map((row) => {
+          const content = (
+            <>
+              <span class={row.rank === 1 ? 'activity-rank rank-1 num' : 'activity-rank num'}>{row.rank}位</span>
+              <span class="activity-label" title={row.label}>
+                {row.label}
+              </span>
+              <span class="activity-plays num">{row.plays}回</span>
+            </>
+          )
+          return (
+            <li>
+              {row.href ? (
+                <a class="activity-row" href={row.href}>
+                  {content}
+                </a>
+              ) : (
+                <div class="activity-row">{content}</div>
+              )}
+            </li>
+          )
+        })}
+      </ol>
+    )}
+  </section>
 )
 
 const CREDIT_GROUPS = [
@@ -146,7 +161,9 @@ const Credits = () => (
   </section>
 )
 
-export const TopPage = ({ recentBests }: { recentBests: RecentBest[] }) => {
+export type TopPageProps = { today: string; dailySongs: SongSummary[]; activity: Activity }
+
+export const TopPage = ({ today, dailySongs, activity }: TopPageProps) => {
   const site = useSite()
   return (
     <Layout title="" subtitle={false}>
@@ -168,22 +185,56 @@ export const TopPage = ({ recentBests }: { recentBests: RecentBest[] }) => {
           </TopCard>
         </nav>
 
-        <section class="top-section" aria-labelledby="recent-title">
-          <h2 id="recent-title">新着記録</h2>
-          {recentBests.length === 0 ? (
-            <p class="empty-box">記録はまだありません</p>
+        <section class="top-section" aria-labelledby="daily-title">
+          <div class="top-section-head">
+            <h2 id="daily-title">今日の曲</h2>
+            <span class="top-section-note num">{formatDate(today)}</span>
+          </div>
+          {dailySongs.length === 0 ? (
+            <p class="empty-box">曲はまだ登録されていません</p>
           ) : (
-            <ol class="box recent-list">
-              {recentBests.map((best) => (
-                <RecentBestRow best={best} rankingOrigin={site.ranking} />
+            <ul class="daily-titles">
+              {dailySongs.map((song) => (
+                <li>
+                  <a class="box daily-title" href={`${site.ranking}${songPath(song.gameSongId)}`}>
+                    <span class="daily-title-no num">No.{song.gameSongId}</span>
+                    <span class="daily-title-name">{song.title}</span>
+                  </a>
+                </li>
               ))}
-            </ol>
+            </ul>
           )}
+          <a class="top-more" href={`${site.ranking}${DAILY_PATH}`}>
+            今日の曲のランキングへ →
+          </a>
+        </section>
+
+        <section class="top-section" aria-labelledby="activity-title">
+          <div class="top-section-head">
+            <h2 id="activity-title">この1週間</h2>
+            <span class="top-section-note num">
+              {formatDate(activity.firstDate)}〜{formatDate(activity.lastDate)}
+            </span>
+          </div>
+          <div class="activities">
+            <ActivityList
+              title="よく遊んだ人"
+              rows={activity.players.map((player) => ({ rank: player.rank, label: player.name, plays: player.plays }))}
+            />
+            <ActivityList
+              title="よく遊ばれた曲"
+              rows={activity.songs.map((song) => ({
+                rank: song.rank,
+                label: song.title,
+                plays: song.plays,
+                href: `${site.ranking}${songPath(song.gameSongId)}`,
+              }))}
+            />
+          </div>
         </section>
 
         <Credits />
       </div>
-      <script dangerouslySetInnerHTML={{ __html: RELATIVE_TIME_SCRIPT }} />
     </Layout>
   )
 }
@@ -411,8 +462,6 @@ export const SongListPage = ({ songs, q, levelRange, sort, dir, page, limit, tot
 
 // ---- 今日の曲（日ごとの課題曲と、その日の記録だけのランキング） ----
 
-export const DAILY_PATH = '/daily'
-
 export type DailyDay = 'today' | 'yesterday'
 
 export type DailyPageProps = {
@@ -421,12 +470,6 @@ export type DailyPageProps = {
   songs: { song: SongSummary; rankings: Map<PlayerCount, RankingPage> }[]
   limit: number
 }
-
-const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土']
-
-// 「2026-10-14」を「10/14（水）」にする
-const formatDate = (date: string) =>
-  `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}（${WEEKDAYS[new Date(`${date}T00:00:00Z`).getUTCDay()]}）`
 
 export const DailyPage = ({ day, date, songs, limit }: DailyPageProps) => (
   <Layout title="今日の曲">

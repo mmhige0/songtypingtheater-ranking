@@ -335,33 +335,37 @@ table.ranking { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .top-card-icon.accent { background: hsl(var(--accent) / .1); color: hsl(var(--accent)); }
 .top-card h2 { font-size: 1.5rem; font-weight: 600; }
 .top-section { margin-top: 56px; }
-.top-section > h2 { margin-bottom: 16px; font-size: 1.5rem; font-weight: 600; }
 
-/* 新着記録: 1件1行（狭い画面は2段）。行全体がその曲・人数のランキングへのリンク */
-.recent-list { margin: 0; padding: 0; overflow: hidden; list-style: none; }
-.recent + .recent { border-top: 1px solid hsl(var(--border-subtle)); }
-.recent-row {
-  display: grid; grid-template-columns: 3rem minmax(0, 1fr) minmax(0, 1fr) 8rem 4.5rem;
-  grid-template-areas: "rank song who score time"; align-items: center; gap: 4px 16px;
+/* トップの今日の曲・この1週間 */
+.top-section-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px; margin-bottom: 16px; }
+.top-section-head h2 { font-size: 1.5rem; font-weight: 600; }
+.top-section-note { font-size: .9375rem; font-weight: 600; color: hsl(var(--muted-foreground)); }
+.daily-titles { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
+@media (min-width: 768px) { .daily-titles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1024px) { .daily-titles { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.daily-title { display: block; height: 100%; padding: 14px 16px; color: hsl(var(--foreground)); text-decoration: none; transition: border-color .15s; }
+.daily-title:hover { border-color: hsl(var(--primary) / .5); }
+.daily-title-no { display: block; font-size: .8125rem; font-weight: 600; color: hsl(var(--muted-foreground)); }
+.daily-title-name { display: block; overflow: hidden; margin-top: 2px; font-weight: 700; text-overflow: ellipsis; white-space: pre; }
+.daily-title:hover .daily-title-name { color: hsl(var(--primary)); }
+.top-more { display: inline-block; margin-top: 12px; font-size: .9375rem; font-weight: 600; text-decoration: none; }
+.top-more:hover { text-decoration: underline; }
+.activities { display: grid; gap: 24px; }
+@media (min-width: 768px) { .activities { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.activity { min-width: 0; }
+.activity-title { margin-bottom: 8px; font-size: 1.0625rem; font-weight: 600; color: hsl(var(--muted-foreground)); }
+.activity-list { margin: 0; padding: 0; overflow: hidden; list-style: none; }
+.activity-list li + li { border-top: 1px solid hsl(var(--border-subtle)); }
+.activity-row {
+  display: grid; grid-template-columns: 2.75rem minmax(0, 1fr) auto; align-items: center; gap: 12px;
   padding: 12px 16px; color: hsl(var(--foreground)); text-decoration: none;
 }
-.recent-row:hover { background: hsl(var(--primary) / .07); }
-.recent.full-combo .recent-row:hover { background: hsl(var(--full-combo-bg)); }
-.recent-rank { grid-area: rank; font-weight: 700; text-align: right; white-space: nowrap; }
-.recent-rank.rank-1 { color: hsl(var(--primary)); }
-.recent-song { grid-area: song; overflow: hidden; font-weight: 700; text-overflow: ellipsis; white-space: pre; }
-.recent-row:hover .recent-song { color: hsl(var(--primary)); }
-.recent-who { grid-area: who; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.recent-players { margin-right: 8px; font-weight: 600; color: hsl(var(--muted-foreground)); }
-.recent-row .participants { display: inline; }
-.recent-row .participants li { display: inline; }
-.recent-row .participant-name { display: inline; }
-.recent-row .participants li:not(:last-child)::after { content: "・"; }
-.recent-score { display: inline-flex; grid-area: score; align-items: center; justify-content: flex-end; gap: 4px; font-weight: 700; white-space: nowrap; }
-.recent-time { grid-area: time; font-size: .8125rem; color: hsl(var(--muted-foreground)); text-align: right; white-space: nowrap; }
-@media (max-width: 767px) {
-  .recent-row { grid-template-columns: 2.5rem minmax(0, 1fr) auto; grid-template-areas: "rank song score" "rank who time"; gap: 2px 12px; }
-}
+a.activity-row:hover { background: hsl(var(--primary) / .07); }
+a.activity-row:hover .activity-label { color: hsl(var(--primary)); }
+.activity-rank { font-weight: 700; text-align: right; white-space: nowrap; }
+.activity-rank.rank-1 { color: hsl(var(--primary)); }
+.activity-label { overflow: hidden; font-weight: 600; text-overflow: ellipsis; white-space: pre; }
+.activity-plays { font-weight: 700; white-space: nowrap; }
 
 /* クレジット（LyricDataCreatorのCreditsSection） */
 .credits { margin-top: 64px; padding-top: 32px; border-top: 1px solid hsl(var(--border)); }

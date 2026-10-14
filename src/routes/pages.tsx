@@ -6,7 +6,8 @@ import { addDays, dailySongs, jstDate, jstDayRange } from '../lib/daily'
 import { ApiError, invalidRequest } from '../lib/http'
 import { limitByIp } from '../lib/rate-limit'
 import { isTopHost } from '../lib/site-host'
-import { fetchBestScores, fetchRankings, fetchRecentBests } from '../lib/ranking'
+import { fetchActivity } from '../lib/activity'
+import { fetchBestScores, fetchRankings } from '../lib/ranking'
 import { findApprovedSong, searchSongs } from '../lib/song-query'
 import {
   PLAYER_COUNTS,
@@ -34,8 +35,6 @@ const SONG_LIST_LIMIT = 100
 // 曲別ランキングで人数ごとに表示する件数。超えた分は人数別ページで見る
 const SONG_RANKING_LIMIT = 10
 const PLAYER_RANKING_LIMIT = 50
-// トップに表示する新着記録の件数
-const RECENT_BEST_LIMIT = 10
 // 今日の曲で人数ごとに表示する件数
 const DAILY_RANKING_LIMIT = 3
 
@@ -73,8 +72,9 @@ pages.onError((error, c) => {
 pages.get('/', async (c) => {
   const url = new URL(c.req.url)
   if (!isTopHost(c.env, url)) return c.redirect(`${SONG_LIST_PATH}${url.search}`, 301)
-  const recentBests = await fetchRecentBests(c.env.DB, RECENT_BEST_LIMIT)
-  return render(c, <TopPage recentBests={recentBests} />)
+  const today = jstDate(Date.now())
+  const [songs, activity] = await Promise.all([dailySongs(c.env.DB, today), fetchActivity(c.env.DB, today)])
+  return render(c, <TopPage today={today} dailySongs={songs} activity={activity} />)
 })
 
 pages.get(SONG_LIST_PATH, async (c) => {

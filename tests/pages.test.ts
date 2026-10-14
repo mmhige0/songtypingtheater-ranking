@@ -1,6 +1,7 @@
 import { env } from 'cloudflare:workers'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import app from '../src/index'
+import { ACTIVITY_CACHE_TTL_MS, fetchActivity } from '../src/lib/activity'
 import { dailySongs } from '../src/lib/daily'
 import { resetDb } from './helpers'
 import { at, insertPlay, insertPlayers, insertSong } from './view-helpers'
@@ -32,13 +33,23 @@ beforeEach(async () => {
 })
 
 describe('top page', () => {
-  const solo = (i: number, name = `Solo${i}`) => [{ id: IDS[i]!, name, color: 'R' as const }]
-  const recentRows = async () => {
-    const text = await html(TOP)
-    const start = text.indexOf('id="recent-title"')
-    return text.slice(start, text.indexOf('id="credits-title"'))
+  // 日本時間 2026-10-14 12:00。この1週間は10/7 0:00〜10/14 0:00（日本時間）
+  const NOW_UTC = '2026-10-14T03:00:00.000Z'
+  const FIRST = '2026-10-06T15:00:00.000Z'
+  const solo = (i: number, name: string) => [{ id: IDS[i]!, name, color: 'R' as const }]
+  const section = (text: string, title: string) => {
+    const start = text.indexOf(`aria-label="${title}"`)
+    return text.slice(start, text.indexOf('</section>', start))
   }
-  const rowCount = (text: string) => text.match(/class="recent-row"/g)?.length ?? 0
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(NOW_UTC))
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
 
   it('links to the editor, practice and the ranking, with credits and without the subtitle', async () => {
     const text = await html(TOP)
@@ -49,7 +60,7 @@ describe('top page', () => {
     expect(text).toContain(`href="${RANKING}/songs"`)
     expect(text).toContain('クレジット')
     expect(text).toContain('href="https://ytyping.net/" target="_blank" rel="noopener noreferrer"')
-    expect(text).toContain('記録はまだありません')
+    expect(text).not.toContain('新着記録')
   })
 
   it('links the site name on ranking pages to the top', async () => {
@@ -58,82 +69,77 @@ describe('top page', () => {
     expect(text).toContain('class="brand-sub"')
   })
 
-  it('shows each team best once, newest first, with the current rank', async () => {
+  it("lists today's songs and links to their ranking", async () => {
+    for (let i = 2; i <= 6; i++) await insertSong(String(i).padStart(3, '0'), `架空の曲${i}`)
+    const picked = await dailySongs(env.DB, '2026-10-14')
+    const text = await html(TOP)
+    expect(text).toContain('10/14（水）')
+    expect(text.match(/class="box daily-title"/g)).toHaveLength(4)
+    for (const s of picked) expect(text).toContain(`href="${RANKING}/songs/${s.gameSongId}"`)
+    expect(text).toContain(`href="${RANKING}/daily"`)
+  })
+
+  it('counts plays of the 7 days up to yesterday by player and by song', async () => {
     const song2 = await insertSong('002', '別の曲')
-    await insertPlay({ playId: 'a1', songRefId: song, score: 100, participants: solo(0, 'Alice'), receivedAt: at(1) })
-    await insertPlay({ playId: 'a2', songRefId: song, score: 300, participants: solo(0, 'Alice'), receivedAt: at(2) })
-    // 自己ベストに届かない記録は出さず、前の自己ベストを出したまま
-    await insertPlay({ playId: 'a3', songRefId: song, score: 200, participants: solo(0, 'Alice'), receivedAt: at(5) })
-    await insertPlay({ playId: 'b1', songRefId: song, score: 400, participants: solo(1, 'Bob'), receivedAt: at(3) })
+    const at = (ms: number) => new Date(Date.parse(FIRST) + ms).toISOString()
+    // Alice: 曲1をソロで3回（最後のプレイの名前を出す）＋曲2をBobと2人で1回
+    await insertPlay({ playId: 'a1', songRefId: song, score: 1, participants: solo(0, '旧名Alice'), receivedAt: at(0) })
+    await insertPlay({ playId: 'a2', songRefId: song, score: 1, participants: solo(0, '旧名Alice'), receivedAt: at(1000) })
+    await insertPlay({ playId: 'a3', songRefId: song, score: 1, participants: solo(0, 'Alice'), receivedAt: at(2000) })
     await insertPlay({
-      playId: 'c1',
+      playId: 'ab',
       songRefId: song2,
-      score: 50,
+      score: 1,
       participants: [
         { id: IDS[0]!, name: 'Alice', color: 'R' },
         { id: IDS[1]!, name: 'Bob', color: 'B' },
       ],
-      isFullCombo: true,
-      receivedAt: at(4),
+      receivedAt: at(1500),
     })
-    const rows = await recentRows()
-    expect(rowCount(rows)).toBe(3)
-    // c1（別の曲・2人） → b1 → a2 の順。行はランキング側の曲・人数のページへのリンク
-    const c1 = rows.indexOf(`href="${RANKING}/songs/002?players=2"`)
-    const b1 = rows.indexOf('>400<')
-    const a2 = rows.indexOf('>300<')
-    expect(c1).toBeGreaterThan(-1)
-    expect(c1).toBeLessThan(b1)
-    expect(b1).toBeLessThan(a2)
-    expect(rows).toContain(`href="${RANKING}/songs/001?players=1"`)
-    expect(rows).not.toContain('>100<')
-    expect(rows).not.toContain('>200<')
-    expect(rows).toContain('class="recent-rank rank-1 num">1位')
-    expect(rows).toContain('class="recent-rank num">2位')
-    expect(rows).toContain('class="recent full-combo"')
-    // JSがなくても日本時間の日時を出す（JSが有効なら「3分前」等に書き換える）
-    expect(rows).toContain('datetime="2026-10-10T13:00:04.000Z"')
-    expect(rows).toContain('>2026/10/10 22:00</time>')
+    await insertPlay({ playId: 'b1', songRefId: song2, score: 1, participants: solo(1, 'Bob'), receivedAt: at(3000) })
+    // 期間の直前・今日・移行分・除外済みは数えない
+    await insertPlay({ playId: 'early', songRefId: song, score: 1, participants: solo(2, '期間前'), receivedAt: at(-1) })
+    await insertPlay({ playId: 'today', songRefId: song, score: 1, participants: solo(3, '今日'), receivedAt: '2026-10-13T15:00:00.000Z' })
+    await insertPlay({ playId: 'legacy', songRefId: song, score: 1, participants: solo(4, '移行'), receivedAt: at(5000), hostPlayerId: null })
+    await insertPlay({ playId: 'excluded', songRefId: song, score: 1, participants: solo(5, '除外'), receivedAt: at(5000), excluded: true })
+
+    const text = await html(TOP)
+    expect(text).toContain('10/7（水）〜10/13（火）')
+    const players = section(text, 'よく遊んだ人')
+    expect(players.indexOf('Alice')).toBeLessThan(players.indexOf('Bob'))
+    expect(players).toContain('>4回<')
+    expect(players).toContain('>2回<')
+    expect(players).not.toContain('旧名Alice')
+    for (const name of ['期間前', '今日', '移行', '除外']) expect(players).not.toContain(name)
+    const songs = section(text, 'よく遊ばれた曲')
+    expect(songs.indexOf('架空の曲名')).toBeLessThan(songs.indexOf('別の曲'))
+    expect(songs).toContain(`href="${RANKING}/songs/001"`)
+    expect(songs).toContain('>3回<')
+    expect(songs).toContain('>2回<')
   })
 
-  it('treats a tied score with a first full combo as the new best', async () => {
-    await insertPlay({ playId: 'a1', songRefId: song, score: 100, participants: solo(0), receivedAt: at(1) })
-    await insertPlay({ playId: 'a2', songRefId: song, score: 100, participants: solo(0), isFullCombo: true, receivedAt: at(2) })
-    // FCでない同点は自己ベストにならない
-    await insertPlay({ playId: 'a3', songRefId: song, score: 100, participants: solo(0), receivedAt: at(3) })
-    const rows = await recentRows()
-    expect(rowCount(rows)).toBe(1)
-    expect(rows).toContain('class="recent full-combo"')
-  })
-
-  it('skips excluded and legacy records and plays tied with a legacy best', async () => {
-    await insertPlay({
-      playId: 'legacy',
-      songRefId: song,
-      score: 500,
-      participants: solo(0, 'Legacy'),
-      isFullCombo: null,
-      hostPlayerId: null,
-    })
-    await insertPlay({ playId: 'tied', songRefId: song, score: 500, participants: solo(0, 'Legacy'), receivedAt: at(1) })
-    await insertPlay({ playId: 'x', songRefId: song, score: 900, participants: solo(1, 'Excluded'), excluded: true })
-    await insertPlay({ playId: 'y', songRefId: song, score: 10, participants: solo(1, 'Excluded'), receivedAt: at(2) })
-    const rows = await recentRows()
-    expect(rowCount(rows)).toBe(1)
-    expect(rows).not.toContain('Legacy')
-    // 除外済みの記録は自己ベストにも順位にも数えない
-    expect(rows).toContain('Excluded')
-    expect(rows).toContain('class="recent-rank num">2位')
-  })
-
-  it('shows at most 10 records', async () => {
-    for (let i = 0; i < 12; i++) {
-      await insertPlay({ playId: `p${i}`, songRefId: song, score: i, participants: solo(i), receivedAt: at(i) })
+  it('gives tied counts the same rank and shows 5 at most', async () => {
+    for (let i = 0; i < 6; i++) {
+      await insertPlay({ playId: `p${i}`, songRefId: song, score: 1, participants: solo(i, `Player${i}`), receivedAt: FIRST })
     }
-    const rows = await recentRows()
-    expect(rowCount(rows)).toBe(10)
-    expect(rows).toContain('Solo11')
-    expect(rows).not.toContain('Solo1<')
+    const players = section(await html(TOP), 'よく遊んだ人')
+    expect(players.match(/class="activity-row"/g)).toHaveLength(5)
+    expect(players.match(/>1位</g)).toHaveLength(5)
+  })
+
+  it('caches the counts until the date changes or an hour passes', async () => {
+    await insertPlay({ playId: 'p0', songRefId: song, score: 1, participants: solo(0, '最初の人'), receivedAt: FIRST })
+    expect((await fetchActivity(env.DB, '2026-10-14')).players).toHaveLength(1)
+    await insertPlay({ playId: 'p1', songRefId: song, score: 1, participants: solo(1, '後の人'), receivedAt: FIRST })
+    expect((await fetchActivity(env.DB, '2026-10-14')).players).toHaveLength(1)
+
+    vi.setSystemTime(new Date(Date.parse(NOW_UTC) + ACTIVITY_CACHE_TTL_MS + 1))
+    expect((await fetchActivity(env.DB, '2026-10-14')).players).toHaveLength(2)
+
+    await insertPlay({ playId: 'p2', songRefId: song, score: 1, participants: solo(2, '別の日の人'), receivedAt: '2026-10-13T15:00:00.000Z' })
+    const nextDay = await fetchActivity(env.DB, '2026-10-15')
+    expect(nextDay.firstDate).toBe('2026-10-08')
+    expect(nextDay.players).toHaveLength(1)
   })
 
   it('redirects other paths on the top host to the ranking host', async () => {
@@ -151,7 +157,7 @@ describe('top page', () => {
     const top = await get('/', single)
     expect(top.status).toBe(200)
     const text = await top.text()
-    expect(text).toContain('id="recent-title"')
+    expect(text).toContain('id="activity-title"')
     expect(text).toContain('href="http://localhost:8787/songs"')
     expect((await get('/songs', single)).status).toBe(200)
   })
