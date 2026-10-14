@@ -305,12 +305,14 @@ levelSortValueはサーバーがlevelから算出し、本文では受け取ら�
           "score": 987654,
           "name": "架空の名前",
           "isFullCombo": true,
+          "hasFullCombo": true,
           "participants": [{ "name": "架空の名前", "color": "R" }],
           "tiedOthers": 1
         },
         "2": {
           "score": 1234567,
           "isFullCombo": null,
+          "hasFullCombo": false,
           "participants": [
             { "name": "架空の名前A", "color": "R" },
             { "name": "架空の名前B", "color": "B" }
@@ -330,6 +332,7 @@ levelSortValueはサーバーがlevelから算出し、本文では受け取ら�
 
 - bestScoresは人数ごとのランキング1位。記録がなければnull。
 - 1位が同点で複数組いる場合は、ランキングの表示順で先頭の組（代表記録）を返し、残りの組数をtiedOthersに入れる。isFullCombo・participants（参加者の時点名と色、R→B→Y→G順）はその代表記録のもの。isFullComboのnullは不明（移行分）。
+- hasFullComboは1位に限らず、その人数の記録（除外分を除く）に1件でもフルコンボがあればtrue。
 - 1人のnameはparticipantsの1人目と同じ（以前からの項目として残す）。
 
 ### GET /api/v1/songs/{gameSongId}/rankings

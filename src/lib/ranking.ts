@@ -124,8 +124,15 @@ export const fetchRankings = async (
   )
 }
 
-// 人数ごとの1位。同点の1位が複数組いる場合は表示順（受付日時 → playId）で先頭の組と、残りの組数
-export type BestScore = { score: number; isFullCombo: boolean | null; participants: Participant[]; tiedOthers: number }
+// 人数ごとの1位。同点の1位が複数組いる場合は表示順（受付日時 → playId）で先頭の組と、残りの組数。
+// hasFullComboは1位に限らず、その人数の記録に1件でもFCがあるか
+export type BestScore = {
+  score: number
+  isFullCombo: boolean | null
+  hasFullCombo: boolean
+  participants: Participant[]
+  tiedOthers: number
+}
 // ソロの1位は名前も単独で返す（participantsの1人目と同じ）
 export type SoloBestScore = BestScore & { name: string }
 export type BestScores = { '1': SoloBestScore | null; '2': BestScore | null; '3': BestScore | null; '4': BestScore | null }
@@ -136,6 +143,7 @@ type BestRow = {
   play_id: string
   score: number
   is_full_combo: number | null
+  has_full_combo: number
   tied_others: number
   name_at_play: string
   color_at_play: PlayerColor
@@ -149,11 +157,12 @@ export const fetchBestScores = async (db: D1Database, songRefIds: number[]): Pro
   if (songRefIds.length === 0) return bestBySong
 
   // 1位の得点の記録からteamKeyごとに代表記録を選び（得点は同じなのでFC → 受付日時 → playId）、
-  // ランキングの表示順（受付日時 → playId）で先頭の記録と同点の組数を、曲・人数ごとに1件選ぶ。参加者は1行ずつ返す
+  // ランキングの表示順（受付日時 → playId）で先頭の記録と同点の組数を、曲・人数ごとに1件選ぶ。参加者は1行ずつ返す。
+  // FCの有無は1位の得点と同じ走査で数え、読み取り行数を増やさない
   const { results } = await db
     .prepare(
       `WITH top AS (
-         SELECT song_ref_id, player_count, MAX(score) AS score FROM play
+         SELECT song_ref_id, player_count, MAX(score) AS score, MAX(is_full_combo IS 1) AS has_full_combo FROM play
          WHERE song_ref_id IN (${songRefIds.map(() => '?').join(', ')}) AND excluded_at IS NULL
          GROUP BY song_ref_id, player_count
        ),
@@ -174,7 +183,8 @@ export const fetchBestScores = async (db: D1Database, songRefIds: number[]): Pro
          FROM representative
          WHERE team_order = 1
        )
-       SELECT o.song_ref_id, o.player_count, o.play_id, t.score, o.is_full_combo, o.teams - 1 AS tied_others,
+       SELECT o.song_ref_id, o.player_count, o.play_id, t.score, o.is_full_combo, t.has_full_combo,
+         o.teams - 1 AS tied_others,
          pp.name_at_play, pp.color_at_play
        FROM ordered AS o
          JOIN top AS t ON t.song_ref_id = o.song_ref_id AND t.player_count = o.player_count
@@ -191,6 +201,7 @@ export const fetchBestScores = async (db: D1Database, songRefIds: number[]): Pro
     const entry = best[key] ?? {
       score: row.score,
       isFullCombo: toBoolean(row.is_full_combo),
+      hasFullCombo: row.has_full_combo === 1,
       participants: [],
       tiedOthers: row.tied_others,
     }

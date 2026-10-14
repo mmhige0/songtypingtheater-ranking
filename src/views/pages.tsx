@@ -162,9 +162,10 @@ const SortHeader = ({
 }
 
 // 人数ごとの1位。スコアとFCを上に、名前をその下に小さく出す。同点の補足は表示しない。
+// FCのマークは1位がFCのとき、背景色はその人数の記録に1件でもFCがあるときに付ける。
 // セル全体（記録なしも含む）がその人数のランキングへのリンク
 const BestCell = ({ song, count, best }: { song: SongSummary; count: PlayerCount; best: BestScore | null }) => (
-  <td class={best?.isFullCombo === true ? 'best full-combo' : 'best'}>
+  <td class={best?.hasFullCombo === true ? 'best full-combo' : 'best'}>
     {best === null ? (
       <a
         class="cell-link best-empty muted"
