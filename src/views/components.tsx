@@ -1,4 +1,4 @@
-import type { GroupRankingEntry, Participant, RankingEntry } from '../lib/ranking'
+import type { Participant, RankingEntry } from '../lib/ranking'
 
 export const formatScore = (score: number) => score.toLocaleString('en-US')
 
@@ -45,16 +45,7 @@ export const Participants = ({ participants }: { participants: Participant[] }) 
 )
 
 // 幅の狭い列に置く順位の一覧。順位とスコアを1行目に、参加者の名前をその下に薄く出す。枠は呼び出し側で付ける
-// showPlayerCountなら順位の横に人数を添える（人数をまとめたランキング用）
-export const RankingList = ({
-  entries,
-  emptyMessage,
-  showPlayerCount = false,
-}: {
-  entries: (RankingEntry | GroupRankingEntry)[]
-  emptyMessage: string
-  showPlayerCount?: boolean
-}) =>
+export const RankingList = ({ entries, emptyMessage }: { entries: RankingEntry[]; emptyMessage: string }) =>
   entries.length === 0 ? (
     <p class="panel-empty">{emptyMessage}</p>
   ) : (
@@ -62,10 +53,7 @@ export const RankingList = ({
       {entries.map((entry) => (
         <li class={entry.isFullCombo === true ? 'entry full-combo' : 'entry'}>
           <div class="entry-head">
-            <span class={entry.rank === 1 ? 'entry-rank rank-1 num' : 'entry-rank num'}>
-              {entry.rank}位
-              {showPlayerCount && 'playerCount' in entry && <span class="entry-players">{entry.playerCount}人</span>}
-            </span>
+            <span class={entry.rank === 1 ? 'entry-rank rank-1 num' : 'entry-rank num'}>{entry.rank}位</span>
             <span class="entry-score num">
               {entry.isFullCombo === true && <FullComboMark />}
               {formatScore(entry.score)}

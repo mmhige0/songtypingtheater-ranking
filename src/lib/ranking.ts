@@ -17,10 +17,8 @@ export type RankingEntry = {
 
 export type RankingPage = { entries: RankingEntry[]; total: number }
 
-// 人数の範囲（minとmaxを含む）でまとめたランキング。各記録に人数を付ける
+// 人数の範囲（minとmaxを含む）。範囲内の人数の記録をまとめて1つのランキングにする
 export type PlayerCountRange = { min: PlayerCount; max: PlayerCount }
-export type GroupRankingEntry = RankingEntry & { playerCount: PlayerCount }
-export type GroupRankingPage = { entries: GroupRankingEntry[]; total: number }
 
 // receivedは受付日時の範囲（fromを含みtoを含まない）。指定すると移行分も除く（受付日時がインポート時刻のため）
 export type RankingFilter = {
@@ -36,7 +34,7 @@ export type RankingFilter = {
 // 検索は順位付けの後なので順位は変わらず、代表記録以外（次点）の名前では一致しない
 const MATCHED_CTE = `
 WITH representative AS (
-  SELECT play_id, player_count, score, is_full_combo, received_at, host_player_id,
+  SELECT play_id, score, is_full_combo, received_at, host_player_id,
     ROW_NUMBER() OVER (
       PARTITION BY team_key
       ORDER BY score DESC, is_full_combo IS 1 DESC, received_at, play_id
@@ -46,8 +44,7 @@ WITH representative AS (
     AND (?6 IS NULL OR (received_at >= ?6 AND received_at < ?7 AND host_player_id IS NOT NULL))
 ),
 ranked AS (
-  SELECT play_id, player_count, score, is_full_combo, received_at, host_player_id,
-    RANK() OVER (ORDER BY score DESC) AS rank
+  SELECT play_id, score, is_full_combo, received_at, host_player_id, RANK() OVER (ORDER BY score DESC) AS rank
   FROM representative
   WHERE team_order = 1
 ),
@@ -61,7 +58,6 @@ matched AS (
 
 type EntryRow = {
   play_id: string
-  player_count: PlayerCount
   score: number
   is_full_combo: number | null
   received_at: string
@@ -99,7 +95,7 @@ export const fetchGroupRankings = async (
   ranges: readonly PlayerCountRange[],
   filter: RankingFilter,
   { limit, offset }: { limit: number; offset: number },
-): Promise<GroupRankingPage[]> => {
+): Promise<RankingPage[]> => {
   const params = ({ min, max }: PlayerCountRange) =>
     [
       songRefId,
@@ -137,7 +133,6 @@ export const fetchGroupRankings = async (
       receivedAt: row.received_at,
       isLegacy: row.host_player_id === null,
       participants: participants.get(row.play_id) ?? [],
-      playerCount: row.player_count,
     })),
   }))
 }
@@ -157,23 +152,7 @@ export const fetchRankings = async (
     filter,
     paging,
   )
-  // 人数は1つに決まっているので返さない（閲覧APIの応答の形を保つ）
-  return new Map(
-    playerCounts.map((count, i) => [
-      count,
-      {
-        total: pages[i]!.total,
-        entries: pages[i]!.entries.map(({ rank, score, isFullCombo, receivedAt, isLegacy, participants }) => ({
-          rank,
-          score,
-          isFullCombo,
-          receivedAt,
-          isLegacy,
-          participants,
-        })),
-      },
-    ]),
-  )
+  return new Map(playerCounts.map((count, i) => [count, pages[i]!]))
 }
 
 // 人数ごとの1位。同点の1位が複数組いる場合は表示順（受付日時 → playId）で先頭の組と、残りの組数。

@@ -464,7 +464,7 @@ export const DailyPage = ({ date, today, songs }: DailyPageProps) => (
               {DAILY_GROUPS.map((group, i) => (
                 <div class="daily-panel">
                   <h3 class="daily-panel-title">{group.label}</h3>
-                  <RankingList entries={rankings[i]!.entries} emptyMessage="記録なし" showPlayerCount={group.min !== group.max} />
+                  <RankingList entries={rankings[i]!.entries} emptyMessage="記録なし" />
                 </div>
               ))}
             </div>

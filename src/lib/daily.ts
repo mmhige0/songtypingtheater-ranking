@@ -1,5 +1,5 @@
 import { invalidRequest } from './http'
-import { fetchGroupRankings, type GroupRankingPage } from './ranking'
+import { fetchGroupRankings, type RankingPage } from './ranking'
 import { listApprovedSongs, type SongSummary } from './song-query'
 
 // 今日の曲。日付は日本時間の「YYYY-MM-DD」で、0時に切り替わる
@@ -77,7 +77,7 @@ export const parseDailyDate = (value: string | undefined, today: string) => {
   return value
 }
 
-export type DailyRanking = { song: SongSummary; rankings: GroupRankingPage[] }
+export type DailyRanking = { song: SongSummary; rankings: RankingPage[] }
 
 // 昨日以前の分だけisolateのメモリに保持する（今日の分は記録が入るとすぐ出す）
 const pastCache = new Map<string, { songs: DailyRanking[]; expiresAt: number }>()

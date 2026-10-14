@@ -392,11 +392,10 @@ table.ranking { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .daily-panels { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .daily-panel { min-width: 0; }
 .daily-panel + .daily-panel { border-left: 1px solid hsl(var(--border-subtle)); }
-.daily-panel-title { padding: 12px 16px 0; font-size: 1rem; color: hsl(var(--muted-foreground)); }
+.daily-panel-title { padding: 12px 16px 10px; border-bottom: 1px solid hsl(var(--border-subtle)); font-size: 1rem; color: hsl(var(--muted-foreground)); }
 .daily-panel .panel-empty { padding: 16px; }
-.entry-players { margin-left: 8px; font-size: .8125rem; font-weight: 600; color: hsl(var(--muted-foreground)); }
 @media (max-width: 639px) {
-  .daily-panel-title { padding: 10px 12px 0; }
+  .daily-panel-title { padding: 10px 12px 8px; }
   .daily-panel .entry { padding: 8px 12px; }
   .daily-panel .entry-rank { font-size: 1rem; }
   .daily-panel .entry-score { font-size: 1.0625rem; }

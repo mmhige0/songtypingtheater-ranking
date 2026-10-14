@@ -390,7 +390,7 @@ describe('daily page', () => {
     expect(yesterday).not.toContain('当日の人')
   })
 
-  it('ranks 2 to 4 player records together as multi, with the player count', async () => {
+  it('ranks 2 to 4 player records together as multi, without the player count', async () => {
     const [song1] = await dailySongs(env.DB, '2026-10-14')
     const ref = (await env.DB.prepare('SELECT id FROM song WHERE game_song_id = ?').bind(song1!.gameSongId).first<{ id: number }>())!.id
     const team = (ids: number[], prefix: string) =>
@@ -404,15 +404,14 @@ describe('daily page', () => {
     const card = text.slice(text.indexOf(`href="/songs/${song1!.gameSongId}"`))
     const multi = card.slice(card.indexOf('>マルチ<'), card.indexOf('</section>'))
     expect(multi).not.toContain('ソロの人')
-    // 2〜4人をまとめて得点順に順位を付け、人数を添える
+    // 2〜4人をまとめて得点順に順位を付ける。人数は出さない
     expect(multi.indexOf('四人0')).toBeLessThan(multi.indexOf('三人0'))
     expect(multi.indexOf('三人0')).toBeLessThan(multi.indexOf('二人0'))
-    expect(multi).toContain('1位<span class="entry-players">4人</span>')
-    expect(multi).toContain('2位<span class="entry-players">3人</span>')
-    expect(multi).toContain('3位<span class="entry-players">2人</span>')
+    expect(multi).toContain('class="entry-rank rank-1 num">1位</span>')
+    expect(multi).toContain('class="entry-rank num">3位</span>')
+    expect(multi).not.toMatch(/[234]人</)
     const soloPanel = card.slice(card.indexOf('>ソロ<'), card.indexOf('>マルチ<'))
     expect(soloPanel).toContain('ソロの人')
-    expect(soloPanel).not.toContain('class="entry-players"')
   })
 
   it('caches past days for 6 hours but not today', async () => {
