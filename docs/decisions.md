@@ -42,6 +42,7 @@
 - 譜面投稿フロー（投稿→未承認曲として仮登録→承認・本登録）は将来構想。v1には入れない。
 
 - 構成はCloudflare無料プラン（Workers＋Hono、D1、Drizzle）。比較検討は行わない。詳細は[システム構成](architecture.md)。
+- 今日の曲（`/daily`）は日付（日本時間）から決まる疑似乱数で、その日の0時より前に登録された承認済みの曲から4曲選ぶ。ゲームのミッション（1日ごとの課題曲4曲）と連携するときは`src/lib/daily.ts`の`dailySongs`を差し替える。
 - ドメインは`kayomodoki.com`（Cloudflare Registrar）。ランキングは`ranking.kayomodoki.com`、LyricDataCreatorは`ldc.kayomodoki.com`（Vercel、DNSのみ）、メインの`kayomodoki.com`はサイト全体の入口（トップ。ランキングと同じWorker）。
 - 送信回数制限はAPI仕様の値に厳密には従わず、Workers Rate Limitingで設定できる期間・回数に合わせる。
 - 同じplayIdの成績再送は本文を比較せず一律200 already_registered（初回receivedAtを返す）。409 PLAY_ID_CONFLICTと比較用の元の登録値の保持は廃止。ゲーム側の対応変更は不要。

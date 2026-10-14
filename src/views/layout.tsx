@@ -18,6 +18,7 @@ const LIGHT = `
   --border: 215 20% 88%; --border-subtle: 215 15% 92%;
   --field: 215 25% 98%; --field-border: 215 20% 88%; --ring: 215 80% 55%;
   --header: 215 30% 97%; --gold: 42 95% 42%; --full-combo-bg: 210 75% 96%; --slider-track: 215 20% 92%;
+  --table-head: 215 35% 25%; --table-head-foreground: 0 0% 100%;
   --sun: block; --moon: none;
 `
 
@@ -31,6 +32,7 @@ const DARK = `
   --border: 220 18% 20%; --border-subtle: 220 15% 16%;
   --field: 220 14% 15%; --field-border: 0 0% 32%; --ring: 200 65% 50%;
   --header: 220 15% 11%; --gold: 45 95% 58%; --full-combo-bg: 210 30% 18%; --slider-track: 220 15% 32%;
+  --table-head: 215 30% 24%; --table-head-foreground: 0 0% 100%;
   --sun: none; --moon: block;
 `
 
@@ -93,6 +95,7 @@ main { max-width: 1400px; margin: 0 auto; padding: 24px 16px 48px; }
 
 /* 部品（LyricDataCreatorのshadcn/ui部品と同じ寸法） */
 .page-title { font-size: 1.875rem; line-height: 1.2; overflow-wrap: anywhere; white-space: pre-wrap; }
+.page-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
 .page-meta { margin: 8px 0 0; color: hsl(var(--muted-foreground)); font-size: .9375rem; }
 .box {
   border: 1px solid hsl(var(--border)); border-radius: 16px; background: hsl(var(--card));
@@ -196,6 +199,11 @@ input[type=search]:focus-visible, select:focus-visible {
 .js .level-slider input[type=range]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 2px hsl(var(--primary)); }
 .js .level-slider input[type=range]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 2px hsl(var(--primary)); }
 
+/* 表の見出し行は濃い背景に白文字にして、値の行と分ける */
+.songs th, .ranking th { background: hsl(var(--table-head)); }
+/* 見出しの背景が角丸の枠からはみ出さないようにする（曲一覧は横スクロールの枠が切り取る） */
+.box:has(> table.ranking) { overflow: hidden; }
+
 /* ランキング（曲一覧）: 列幅固定の表。狭い画面は枠の中で横スクロールする */
 #sort-state { display: contents; }
 .result-count { margin: 0 0 8px; }
@@ -207,7 +215,7 @@ table.songs { width: 100%; min-width: 1080px; border-collapse: collapse; table-l
 .songs .col-level { width: 4rem; }
 .songs th {
   padding: 12px; font-size: .75rem; font-weight: 600; letter-spacing: .025em; text-align: left;
-  color: hsl(var(--muted-foreground)); white-space: nowrap;
+  color: hsl(var(--table-head-foreground)); white-space: nowrap;
 }
 .songs td { padding: 10px 12px; border-top: 1px solid hsl(var(--border-subtle)); vertical-align: top; }
 /* 1〜4人の列は縦線で区切る */
@@ -222,7 +230,8 @@ table.songs { width: 100%; min-width: 1080px; border-collapse: collapse; table-l
 .songs .level { font-weight: 600; white-space: nowrap; }
 .songs .no, .songs .level, .songs th:first-child, .songs th:nth-child(3) { text-align: right; }
 .sort-link { display: inline-flex; align-items: center; color: inherit; text-decoration: none; }
-.sort-link:hover, th[aria-sort] .sort-link { color: hsl(var(--primary)); }
+/* 見出しは濃い背景なので、選択中・ホバーは色ではなく下線で示す */
+.sort-link:hover, th[aria-sort] .sort-link { text-decoration: underline; text-underline-offset: 3px; }
 .sort-arrow { display: inline-block; width: 1em; text-align: center; }
 .song-title {
   display: block; overflow: hidden; font-weight: 600; color: hsl(var(--foreground));
@@ -274,7 +283,7 @@ table.songs { width: 100%; min-width: 1080px; border-collapse: collapse; table-l
 table.ranking { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .ranking th {
   padding: 10px 16px; font-size: .75rem; font-weight: 600; letter-spacing: .025em; text-align: left;
-  color: hsl(var(--muted-foreground));
+  color: hsl(var(--table-head-foreground));
 }
 .ranking td { padding: 14px 16px; border-top: 1px solid hsl(var(--border-subtle)); vertical-align: middle; }
 .ranking .rank { text-align: right; width: 5rem; font-size: 1.25rem; font-weight: 700; white-space: nowrap; }
@@ -363,6 +372,34 @@ table.ranking { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .credits li + li { margin-top: 4px; }
 .credits a { font-weight: 600; text-decoration: none; }
 .credits a:hover { color: hsl(var(--primary) / .8); }
+
+/* 今日の曲: 曲ごとのカードに1〜4人のその日の上位を並べる（PCは4列、それ以外は2列） */
+.daily-head { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin: 24px 0 8px; }
+.daily-date { margin: 0; font-size: 1.125rem; font-weight: 700; }
+.daily-songs { display: grid; gap: 24px; margin-top: 16px; }
+.daily-song { overflow: hidden; }
+.daily-song-head { padding: 16px 16px 12px; border-bottom: 1px solid hsl(var(--border-subtle)); }
+.daily-song-title { font-family: "Space Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Noto Sans JP", sans-serif; font-size: 1.375rem; font-weight: 700; color: hsl(var(--foreground)); text-decoration: none; overflow-wrap: anywhere; }
+.daily-song-title:hover { color: hsl(var(--primary)); }
+.daily-song-head .page-meta { margin-top: 4px; }
+.daily-panels { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.daily-panel { min-width: 0; border-top: 1px solid hsl(var(--border-subtle)); }
+.daily-panel:nth-child(odd) { border-right: 1px solid hsl(var(--border-subtle)); }
+.daily-panel:nth-child(-n+2) { border-top: 0; }
+.daily-panel-title { padding: 12px 16px 0; font-size: 1rem; color: hsl(var(--muted-foreground)); }
+.daily-panel .panel-empty { padding: 16px; }
+@media (max-width: 639px) {
+  .daily-panel-title { padding: 10px 12px 0; }
+  .daily-panel .entry { padding: 8px 12px; }
+  .daily-panel .entry-rank { font-size: 1rem; }
+  .daily-panel .entry-score { font-size: 1.0625rem; }
+  .daily-panel .participants { font-size: .9375rem; }
+}
+@media (min-width: 1024px) {
+  .daily-panels { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .daily-panel { border-top: 0; }
+  .daily-panel:not(:last-child) { border-right: 1px solid hsl(var(--border-subtle)); }
+}
 `
 
 // 保存したテーマ（light・dark）を描画前に反映する。保存がなければ端末の設定に従う。

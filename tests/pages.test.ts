@@ -1,6 +1,7 @@
 import { env } from 'cloudflare:workers'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import app from '../src/index'
+import { dailySongs } from '../src/lib/daily'
 import { resetDb } from './helpers'
 import { at, insertPlay, insertPlayers, insertSong } from './view-helpers'
 
@@ -204,6 +205,50 @@ describe('song list page', () => {
     expect(cell.indexOf('aria-label="フルコンボ"')).toBeLessThan(cell.indexOf('</td>'))
   })
 
+  it('colors a cell with any full combo record, marking only a full combo top', async () => {
+    const solo = (playId: string, i: number, score: number, isFullCombo: boolean, excluded = false) =>
+      insertPlay({
+        playId,
+        songRefId: song,
+        score,
+        participants: [{ id: IDS[i]!, name: `Player${i}`, color: 'R' }],
+        isFullCombo,
+        excluded,
+      })
+    // 1位はFCではないが、2位にFCがある
+    await solo('top', 0, 900, false)
+    await solo('second-fc', 1, 800, true)
+    // 2人の記録のFCは除外済みだけ
+    await insertPlay({
+      playId: 'excluded-fc',
+      songRefId: song,
+      score: 700,
+      participants: [
+        { id: IDS[2]!, name: 'Player2', color: 'R' },
+        { id: IDS[3]!, name: 'Player3', color: 'B' },
+      ],
+      isFullCombo: true,
+      excluded: true,
+    })
+    await insertPlay({
+      playId: 'pair',
+      songRefId: song,
+      score: 600,
+      participants: [
+        { id: IDS[2]!, name: 'Player2', color: 'R' },
+        { id: IDS[3]!, name: 'Player3', color: 'B' },
+      ],
+    })
+    const text = await html('/songs')
+    const cell = (count: number) => {
+      const start = text.lastIndexOf('<td', text.indexOf(`href="/songs/001?players=${count}"`))
+      return text.slice(start, text.indexOf('</td>', start))
+    }
+    expect(cell(1)).toMatch(/^<td class="best full-combo">/)
+    expect(cell(1)).not.toContain('aria-label="フルコンボ"')
+    expect(cell(2)).toMatch(/^<td class="best">/)
+  })
+
   it('shows a message when nothing matches', async () => {
     expect(await html('/songs?q=存在しない曲')).toContain('条件に一致する曲がありません')
   })
@@ -271,6 +316,64 @@ describe('song list page', () => {
     const second = await html('/songs?sort=level&page=2')
     expect(second).toContain('<a class="chip active num" href="/songs?sort=level&amp;page=2" aria-current="page">2</a>')
     expect(second).toContain('<span class="button button-outline" aria-disabled="true">次へ</span>')
+  })
+})
+
+describe('daily page', () => {
+  // 日本時間 2026-10-14 12:00
+  const NOW_UTC = '2026-10-14T03:00:00.000Z'
+
+  beforeEach(async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(NOW_UTC))
+    for (let i = 2; i <= 6; i++) await insertSong(String(i).padStart(3, '0'), `架空の曲${i}`)
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  const solo = (i: number, name: string) => [{ id: IDS[i]!, name, color: 'R' as const }]
+
+  it('shows four songs of the day and links to it from the song list', async () => {
+    const picked = await dailySongs(env.DB, '2026-10-14')
+    expect(picked).toHaveLength(4)
+    const text = await html('/daily')
+    expect(text).toContain('<h1 class="page-title">今日の曲</h1>')
+    expect(text).toContain('10/14（水）')
+    expect(text).toMatch(/class="chip active" href="\/daily" aria-current="page"/)
+    for (const song of picked) expect(text).toContain(`href="/songs/${song.gameSongId}"`)
+    expect(text.match(/class="box daily-song"/g)).toHaveLength(4)
+    expect(text).toContain('記録なし')
+    expect(await html('/songs')).toContain('href="/daily"')
+  })
+
+  it('ranks only the records received on that day in Japan time', async () => {
+    const [song1] = await dailySongs(env.DB, '2026-10-14')
+    const ref = (await env.DB.prepare('SELECT id FROM song WHERE game_song_id = ?').bind(song1!.gameSongId).first<{ id: number }>())!.id
+    // 日本時間 10/13 23:59:59 と 10/14 0:00
+    await insertPlay({ playId: 'before', songRefId: ref, score: 900, participants: solo(0, '前日の人'), receivedAt: '2026-10-13T14:59:59.999Z' })
+    await insertPlay({ playId: 'first', songRefId: ref, score: 100, participants: solo(1, '当日の人'), receivedAt: '2026-10-13T15:00:00.000Z' })
+    await insertPlay({ playId: 'legacy', songRefId: ref, score: 800, participants: solo(2, '移行の人'), receivedAt: '2026-10-14T01:00:00.000Z', hostPlayerId: null })
+    await insertPlay({ playId: 'excluded', songRefId: ref, score: 700, participants: solo(3, '除外の人'), receivedAt: '2026-10-14T01:00:00.000Z', excluded: true })
+    const today = await html('/daily')
+    expect(today).toContain('当日の人')
+    expect(today).toContain('1位')
+    for (const name of ['前日の人', '移行の人', '除外の人']) expect(today).not.toContain(name)
+
+    // 昨日（10/13）の曲が同じ曲とは限らないため、昨日の曲に前日の記録を入れて確認する
+    const [yesterdaySong] = await dailySongs(env.DB, '2026-10-13')
+    const yref = (await env.DB.prepare('SELECT id FROM song WHERE game_song_id = ?').bind(yesterdaySong!.gameSongId).first<{ id: number }>())!.id
+    await insertPlay({ playId: 'yesterday', songRefId: yref, score: 500, participants: solo(4, '昨日の人'), receivedAt: '2026-10-13T10:00:00.000Z' })
+    const yesterday = await html('/daily?day=yesterday')
+    expect(yesterday).toContain('10/13（火）')
+    expect(yesterday).toMatch(/class="chip active" href="\/daily\?day=yesterday" aria-current="page"/)
+    expect(yesterday).toContain('昨日の人')
+    expect(yesterday).not.toContain('当日の人')
+  })
+
+  it('rejects other days', async () => {
+    expect(await html('/daily?day=tomorrow', 400)).toContain('dayはyesterdayだけ指定できます')
   })
 })
 
