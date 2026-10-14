@@ -1,0 +1,1 @@
+CREATE INDEX `play_received_at_idx` ON `play` (`received_at`);

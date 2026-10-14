@@ -2,7 +2,8 @@ import { Hono, type Context } from 'hono'
 import { raw } from 'hono/html'
 import type { Child } from 'hono/jsx'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
-import { ApiError } from '../lib/http'
+import { addDays, dailySongs, jstDate, jstDayRange } from '../lib/daily'
+import { ApiError, invalidRequest } from '../lib/http'
 import { limitByIp } from '../lib/rate-limit'
 import { fetchBestScores, fetchRankings } from '../lib/ranking'
 import { findApprovedSong, searchSongs } from '../lib/song-query'
@@ -15,13 +16,15 @@ import {
   parseSongSort,
   parseSortDir,
 } from '../lib/view-query'
-import { ErrorPage, PlayerRankingPage, SongListPage, SongRankingPage } from '../views/pages'
+import { DAILY_PATH, DailyPage, ErrorPage, PlayerRankingPage, SongListPage, SongRankingPage } from '../views/pages'
 
 // fetchBestScoresは曲IDを1つずつバインドするため、D1の上限（1クエリ100個）を超えないこと
 const SONG_LIST_LIMIT = 100
 // 曲別ランキングで人数ごとに表示する件数。超えた分は人数別ページで見る
 const SONG_RANKING_LIMIT = 10
 const PLAYER_RANKING_LIMIT = 50
+// 今日の曲で人数ごとに表示する件数
+const DAILY_RANKING_LIMIT = 3
 
 const render = (c: Context, page: Child, status: ContentfulStatusCode = 200) =>
   c.html(
@@ -129,6 +132,36 @@ pages.get('/songs/:gameSongId/players/:players', async (c) => {
       name={filter.name}
       page={page}
       limit={PLAYER_RANKING_LIMIT}
+    />,
+  )
+})
+
+// 今日の曲。dayを指定しなければ今日、yesterdayなら昨日
+pages.get(DAILY_PATH, async (c) => {
+  const dayParam = c.req.query('day')
+  if (dayParam !== undefined && dayParam !== '' && dayParam !== 'yesterday') {
+    throw invalidRequest('dayはyesterdayだけ指定できます')
+  }
+  const day = dayParam === 'yesterday' ? 'yesterday' : 'today'
+  const today = jstDate(Date.now())
+  const date = day === 'yesterday' ? addDays(today, -1) : today
+  const received = jstDayRange(date)
+  const songs = await dailySongs(c.env.DB, date)
+  const rankings = await Promise.all(
+    songs.map((song) =>
+      fetchRankings(c.env.DB, song.id, PLAYER_COUNTS, { fullComboOnly: false, name: null, received }, {
+        limit: DAILY_RANKING_LIMIT,
+        offset: 0,
+      }),
+    ),
+  )
+  return render(
+    c,
+    <DailyPage
+      day={day}
+      date={date}
+      songs={songs.map((song, i) => ({ song, rankings: rankings[i]! }))}
+      limit={DAILY_RANKING_LIMIT}
     />,
   )
 })

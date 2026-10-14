@@ -188,7 +188,12 @@ const BestCell = ({ song, count, best }: { song: SongSummary; count: PlayerCount
 
 export const SongListPage = ({ songs, q, levelRange, sort, dir, page, limit, total }: SongListProps) => (
   <Layout title="">
-    <h1 class="page-title">ランキング</h1>
+    <div class="page-head">
+      <h1 class="page-title">ランキング</h1>
+      <a class="button button-outline" href={DAILY_PATH}>
+        今日の曲
+      </a>
+    </div>
     <form id="song-search" class="box filters" method="get" action="/" role="search" data-live="song-results">
       <span id="sort-state" data-sync>
         {sort !== 'id' && <input type="hidden" name="sort" value={sort} />}
@@ -278,6 +283,72 @@ export const SongListPage = ({ songs, q, levelRange, sort, dir, page, limit, tot
       />
     </div>
     <LiveSearchScript />
+  </Layout>
+)
+
+// ---- 今日の曲（日ごとの課題曲と、その日の記録だけのランキング） ----
+
+export const DAILY_PATH = '/daily'
+
+export type DailyDay = 'today' | 'yesterday'
+
+export type DailyPageProps = {
+  day: DailyDay
+  date: string
+  songs: { song: SongSummary; rankings: Map<PlayerCount, RankingPage> }[]
+  limit: number
+}
+
+const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土']
+
+// 「2026-10-14」を「10/14（水）」にする
+const formatDate = (date: string) =>
+  `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}（${WEEKDAYS[new Date(`${date}T00:00:00Z`).getUTCDay()]}）`
+
+export const DailyPage = ({ day, date, songs, limit }: DailyPageProps) => (
+  <Layout title="今日の曲">
+    <h1 class="page-title">今日の曲</h1>
+    <div class="daily-head">
+      <nav class="chips" aria-label="日付">
+        <a class={day === 'today' ? 'chip active' : 'chip'} href={DAILY_PATH} aria-current={day === 'today' ? 'page' : undefined}>
+          今日
+        </a>
+        <a
+          class={day === 'yesterday' ? 'chip active' : 'chip'}
+          href={`${DAILY_PATH}${toQuery({ day: 'yesterday' })}`}
+          aria-current={day === 'yesterday' ? 'page' : undefined}
+        >
+          昨日
+        </a>
+      </nav>
+      <p class="daily-date num">{formatDate(date)}</p>
+    </div>
+    <p class="small muted">その日（日本時間の0時〜24時）に受け付けた記録だけで、人数ごとの上位{limit}件を表示します</p>
+
+    {songs.length === 0 ? (
+      <p class="empty-box">曲はまだ登録されていません</p>
+    ) : (
+      <div class="daily-songs">
+        {songs.map(({ song, rankings }) => (
+          <section class="box daily-song" aria-label={song.title}>
+            <div class="daily-song-head">
+              <a class="daily-song-title" href={songPath(song.gameSongId)}>
+                {song.title}
+              </a>
+              <SongMeta song={song} />
+            </div>
+            <div class="daily-panels">
+              {PLAYER_COUNTS.map((count) => (
+                <div class="daily-panel">
+                  <h3 class="daily-panel-title">{count}人</h3>
+                  <RankingList entries={rankings.get(count)!.entries} emptyMessage="記録なし" />
+                </div>
+              ))}
+            </div>
+          </section>
+        ))}
+      </div>
+    )}
   </Layout>
 )
 

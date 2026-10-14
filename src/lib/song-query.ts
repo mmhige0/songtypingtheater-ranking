@@ -24,7 +24,7 @@ const toSummary = (row: SongRow): SongSummary => ({
 // isolateのメモリに保持して絞り込み・並べ替えはJSで行う。曲の登録・更新は最大TTLの間反映されない
 export const SONG_CACHE_TTL_MS = 5 * 60 * 1000
 
-type CachedSong = SongSummary & { levelSortValue: number | null; songNumber: number }
+type CachedSong = SongSummary & { levelSortValue: number | null; songNumber: number; createdAt: string }
 
 // リクエスト間で共有するのは読み込み済みのデータだけ。読み込み中のPromiseを共有すると、
 // 読み込んだリクエストが切断でキャンセルされたとき後続が完了しないPromiseを待ち続けるため
@@ -41,12 +41,15 @@ const loadApprovedSongs = async (db: D1Database): Promise<CachedSong[]> => {
   if (songCache && Date.now() < songCache.expiresAt) return songCache.songs
   const loadedGeneration = generation
   const { results } = await db
-    .prepare(`SELECT id, game_song_id, title, artist, level, level_sort_value FROM song WHERE status = 'approved'`)
-    .all<SongRow & { level_sort_value: number | null }>()
+    .prepare(
+      `SELECT id, game_song_id, title, artist, level, level_sort_value, created_at FROM song WHERE status = 'approved'`,
+    )
+    .all<SongRow & { level_sort_value: number | null; created_at: string }>()
   const songs = results.map((row) => ({
     ...toSummary(row),
     levelSortValue: row.level_sort_value,
     songNumber: Number(row.game_song_id),
+    createdAt: row.created_at,
   }))
   // 読み込み中にclearSongCacheされた場合は古い結果を残さない
   if (loadedGeneration === generation) songCache = { songs, expiresAt: Date.now() + SONG_CACHE_TTL_MS }
@@ -122,6 +125,9 @@ export const searchSongs = async (
     total: matched.length,
   }
 }
+
+// 承認済みの全曲を曲番号順で返す（今日の曲の選曲用）
+export const listApprovedSongs = async (db: D1Database) => [...(await loadApprovedSongs(db))].sort(byId)
 
 export const findApprovedSong = async (db: D1Database, gameSongId: string) => {
   const row = await db

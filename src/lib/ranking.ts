@@ -17,9 +17,15 @@ export type RankingEntry = {
 
 export type RankingPage = { entries: RankingEntry[]; total: number }
 
-export type RankingFilter = { fullComboOnly: boolean; name: string | null }
+// receivedは受付日時の範囲（fromを含みtoを含まない）。指定すると移行分も除く（受付日時がインポート時刻のため）
+export type RankingFilter = {
+  fullComboOnly: boolean
+  name: string | null
+  received?: { from: string; to: string }
+}
 
-// ?1 曲の内部ID、?2 人数、?3 FC記録だけなら1、?4 名前検索（nullなら検索しない）。
+// ?1 曲の内部ID、?2 人数、?3 FC記録だけなら1、?4 名前検索（nullなら検索しない）、
+// ?5・?6 受付日時の範囲（nullなら絞り込まない）。
 // 1. FC絞り込み → 2. teamKeyごとに代表記録を1件選ぶ（得点 → FC → 受付日時 → playId）→
 // 3. 代表記録の得点だけで競技順位を付ける → 4. 代表記録の時点名で検索する。
 // 検索は順位付けの後なので順位は変わらず、代表記録以外（次点）の名前では一致しない
@@ -32,6 +38,7 @@ WITH representative AS (
     ) AS team_order
   FROM play
   WHERE song_ref_id = ?1 AND player_count = ?2 AND excluded_at IS NULL AND (?3 = 0 OR is_full_combo = 1)
+    AND (?5 IS NULL OR (received_at >= ?5 AND received_at < ?6 AND host_player_id IS NOT NULL))
 ),
 ranked AS (
   SELECT play_id, score, is_full_combo, received_at, host_player_id, RANK() OVER (ORDER BY score DESC) AS rank
@@ -86,11 +93,19 @@ export const fetchRankings = async (
   filter: RankingFilter,
   { limit, offset }: { limit: number; offset: number },
 ): Promise<Map<PlayerCount, RankingPage>> => {
-  const params = (count: PlayerCount) => [songRefId, count, filter.fullComboOnly ? 1 : 0, filter.name] as const
+  const params = (count: PlayerCount) =>
+    [
+      songRefId,
+      count,
+      filter.fullComboOnly ? 1 : 0,
+      filter.name,
+      filter.received?.from ?? null,
+      filter.received?.to ?? null,
+    ] as const
   const results = await db.batch<unknown>(
     playerCounts.flatMap((count) => [
       db
-        .prepare(`${MATCHED_CTE} SELECT * FROM matched ORDER BY score DESC, received_at, play_id LIMIT ?5 OFFSET ?6`)
+        .prepare(`${MATCHED_CTE} SELECT * FROM matched ORDER BY score DESC, received_at, play_id LIMIT ?7 OFFSET ?8`)
         .bind(...params(count), limit, offset),
       db.prepare(`${MATCHED_CTE} SELECT COUNT(*) AS total FROM matched`).bind(...params(count)),
     ]),

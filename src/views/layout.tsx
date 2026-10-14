@@ -94,6 +94,7 @@ main { max-width: 1400px; margin: 0 auto; padding: 24px 16px 48px; }
 
 /* 部品（LyricDataCreatorのshadcn/ui部品と同じ寸法） */
 .page-title { font-size: 1.875rem; line-height: 1.2; overflow-wrap: anywhere; white-space: pre-wrap; }
+.page-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
 .page-meta { margin: 8px 0 0; color: hsl(var(--muted-foreground)); font-size: .9375rem; }
 .box {
   border: 1px solid hsl(var(--border)); border-radius: 16px; background: hsl(var(--card));
@@ -317,6 +318,34 @@ table.ranking { width: 100%; border-collapse: collapse; table-layout: fixed; }
   .best-link .participants { margin-top: 6px; }
 }
 
+
+/* 今日の曲: 曲ごとのカードに1〜4人のその日の上位を並べる（PCは4列、それ以外は2列） */
+.daily-head { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin: 24px 0 8px; }
+.daily-date { margin: 0; font-size: 1.125rem; font-weight: 700; }
+.daily-songs { display: grid; gap: 24px; margin-top: 16px; }
+.daily-song { overflow: hidden; }
+.daily-song-head { padding: 16px 16px 12px; border-bottom: 1px solid hsl(var(--border-subtle)); }
+.daily-song-title { font-family: "Space Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Noto Sans JP", sans-serif; font-size: 1.375rem; font-weight: 700; color: hsl(var(--foreground)); text-decoration: none; overflow-wrap: anywhere; }
+.daily-song-title:hover { color: hsl(var(--primary)); }
+.daily-song-head .page-meta { margin-top: 4px; }
+.daily-panels { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.daily-panel { min-width: 0; border-top: 1px solid hsl(var(--border-subtle)); }
+.daily-panel:nth-child(odd) { border-right: 1px solid hsl(var(--border-subtle)); }
+.daily-panel:nth-child(-n+2) { border-top: 0; }
+.daily-panel-title { padding: 12px 16px 0; font-size: 1rem; color: hsl(var(--muted-foreground)); }
+.daily-panel .panel-empty { padding: 16px; }
+@media (max-width: 639px) {
+  .daily-panel-title { padding: 10px 12px 0; }
+  .daily-panel .entry { padding: 8px 12px; }
+  .daily-panel .entry-rank { font-size: 1rem; }
+  .daily-panel .entry-score { font-size: 1.0625rem; }
+  .daily-panel .participants { font-size: .9375rem; }
+}
+@media (min-width: 1024px) {
+  .daily-panels { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .daily-panel { border-top: 0; }
+  .daily-panel:not(:last-child) { border-right: 1px solid hsl(var(--border-subtle)); }
+}
 `
 
 // 保存したテーマ（light・dark）を描画前に反映する。保存がなければ端末の設定に従う。
