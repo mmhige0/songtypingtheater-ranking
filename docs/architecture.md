@@ -17,9 +17,9 @@ Cloudflareの無料プランで構築する。他構成との比較は行わず�
 | バックアップ | D1 Time Travel（7日）＋管理者の手動`wrangler d1 export` |
 | 言語・テスト | TypeScript（strict）、Vitest＋`@cloudflare/vitest-plugin`（旧`@cloudflare/vitest-pool-workers`） |
 | 設定・型 | `wrangler.jsonc`。Workerの型は`wrangler types`で生成（`worker-configuration.d.ts`はコミットせず、型チェック時に生成） |
-| ドメイン | `ranking.kayomodoki.com`（Workersのカスタムドメイン）。移行期間中は`songtypingtheater-ranking.songtypingtheater-ranking.workers.dev`も受け付ける（`workers_dev: true`）。ゲームの送信先が切り替わり古いURLへの送信がなくなったら`workers_dev: false`で閉じる |
+| ドメイン | `ranking.kayomodoki.com`とトップの`kayomodoki.com`（同じWorkerのカスタムドメイン。ホストの振り分けはwranglerの`vars`の`TOP_ORIGIN`・`RANKING_ORIGIN`で決める）。移行期間中は`songtypingtheater-ranking.songtypingtheater-ranking.workers.dev`も受け付ける（`workers_dev: true`）。ゲームの送信先が切り替わり古いURLへの送信がなくなったら`workers_dev: false`で閉じる |
 
-LyricDataCreator（Vercel）とは運用基盤が別になる。連携は公開の曲一覧APIの読み取りだけで、相互に依存しない。
+LyricDataCreator（Vercel）とは運用基盤が別になる。連携は公開の曲一覧APIの読み取りだけで、相互に依存しない。サイト全体の入口（トップ）はこのWorkerが`kayomodoki.com`で出し、LyricDataCreatorへはリンクするだけ（リンク先は`src/views/site.ts`の`LDC_ORIGIN`）。
 
 ## 環境・秘密情報
 

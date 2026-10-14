@@ -1,4 +1,7 @@
+import type { PopularSongs } from '../lib/popular-songs'
+import { DAILY_GROUPS, dailyDates, type DailyRanking } from '../lib/daily'
 import type { BestScore, BestScores, RankingPage } from '../lib/ranking'
+import type { Child } from 'hono/jsx'
 import type { SongSummary } from '../lib/song-query'
 import {
   LEVEL_FILTER_MAX,
@@ -21,10 +24,17 @@ import {
   SearchField,
   toQuery,
 } from './components'
-import { Layout } from './layout'
+import { Icon, Layout } from './layout'
+import { LDC_ORIGIN, useSite } from './site'
 
 // 1ページ目はpageを付けない
 const pageParam = (page: number) => (page === 1 ? null : page)
+
+export const SONG_LIST_PATH = '/songs'
+export const DAILY_PATH = '/daily'
+
+// 「2026-10-14」を「10/14」にする
+const formatDate = (date: string) => `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}`
 
 const songPath = (gameSongId: string) => `/songs/${encodeURIComponent(gameSongId)}`
 
@@ -65,6 +75,136 @@ const RankingFilters = ({
   </form>
 )
 
+// ---- トップ（サイト全体の入口。LyricDataCreatorの入口ページを引き継ぐ） ----
+
+const TopCard = ({ href, title, accent = false, children }: { href: string; title: string; accent?: boolean; children: Child }) => (
+  <a class="top-card" href={href}>
+    <span class={accent ? 'top-card-icon accent' : 'top-card-icon'}>
+      <Icon>{children}</Icon>
+    </span>
+    <h2>{title}</h2>
+  </a>
+)
+
+// 人気曲。順位・曲番・曲名・アーティスト名の順。行全体がその曲のランキングへのリンク
+const PopularSongList = ({ songs, rankingOrigin }: { songs: PopularSongs['songs']; rankingOrigin: string }) =>
+  songs.length === 0 ? (
+    <p class="empty-box">記録はまだありません</p>
+  ) : (
+    <ol class="box popular-list">
+      {songs.map((song) => (
+        <li>
+          <a class="popular-row" href={`${rankingOrigin}${songPath(song.gameSongId)}`}>
+            <span class={song.rank === 1 ? 'popular-rank rank-1 num' : 'popular-rank num'}>{song.rank}位</span>
+            <span class="popular-no num">No.{song.gameSongId}</span>
+            <span class="popular-title" title={song.title}>
+              {song.title}
+            </span>
+            <span class="popular-artist" title={song.artist ?? undefined}>
+              {song.artist}
+            </span>
+          </a>
+        </li>
+      ))}
+    </ol>
+  )
+
+const CREDIT_GROUPS = [
+  {
+    label: '素材提供サイト',
+    links: [
+      { name: 'イラストストック', href: 'https://illust-stock.com/' },
+      { name: '効果音ラボ', href: 'https://soundeffect-lab.info/' },
+    ],
+  },
+  { label: 'Special Thanks', links: [{ name: 'YTyping', href: 'https://ytyping.net/' }] },
+]
+
+const Credits = () => (
+  <section class="credits" aria-labelledby="credits-title">
+    <h2 id="credits-title">クレジット</h2>
+    {CREDIT_GROUPS.map((group) => (
+      <div class="credits-group">
+        <div class="credits-label">{group.label}</div>
+        <ul>
+          {group.links.map((link) => (
+            <li>
+              <a href={link.href} target="_blank" rel="noopener noreferrer">
+                {link.name}
+              </a>
+              &nbsp;様
+            </li>
+          ))}
+        </ul>
+      </div>
+    ))}
+  </section>
+)
+
+export type TopPageProps = { today: string; dailySongs: SongSummary[]; popular: PopularSongs }
+
+export const TopPage = ({ today, dailySongs, popular }: TopPageProps) => {
+  const site = useSite()
+  return (
+    <Layout title="" subtitle={false}>
+      <div class="top">
+        <nav class="top-cards" aria-label="メニュー">
+          {/* lucideのTrophy・Edit3・Keyboard */}
+          <TopCard href={`${site.ranking}${SONG_LIST_PATH}`} title="ランキング">
+            <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18M4 22h16" />
+            <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" />
+            <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" />
+          </TopCard>
+          <TopCard href={`${LDC_ORIGIN}/editor`} title="歌詞データ作成">
+            <path d="M12 20h9" />
+            <path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z" />
+          </TopCard>
+          <TopCard href={`${LDC_ORIGIN}/songs`} title="練習" accent>
+            <path d="M10 8h.01M12 12h.01M14 8h.01M16 12h.01M18 8h.01M6 8h.01M7 16h10M8 12h.01" />
+            <rect width="20" height="16" x="2" y="4" rx="2" />
+          </TopCard>
+        </nav>
+
+        <section class="top-section" aria-labelledby="daily-title">
+          <div class="top-section-head">
+            <h2 id="daily-title">今日の曲</h2>
+            <span class="top-section-note num">{formatDate(today)}</span>
+          </div>
+          {dailySongs.length === 0 ? (
+            <p class="empty-box">曲はまだ登録されていません</p>
+          ) : (
+            <ul class="daily-titles">
+              {dailySongs.map((song) => (
+                <li>
+                  <a class="box daily-title" href={`${site.ranking}${songPath(song.gameSongId)}`}>
+                    <span class="daily-title-no num">No.{song.gameSongId}</span>
+                    <span class="daily-title-name">{song.title}</span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          )}
+          <a class="top-more" href={`${site.ranking}${DAILY_PATH}`}>
+            今日の曲のランキングへ →
+          </a>
+        </section>
+
+        <section class="top-section" aria-labelledby="popular-title">
+          <div class="top-section-head">
+            <h2 id="popular-title">人気曲</h2>
+            <span class="top-section-note num">
+              {formatDate(popular.firstDate)}〜{formatDate(popular.lastDate)}
+            </span>
+          </div>
+          <PopularSongList songs={popular.songs} rankingOrigin={site.ranking} />
+        </section>
+
+        <Credits />
+      </div>
+    </Layout>
+  )
+}
+
 // ---- ランキング（曲一覧） ----
 
 export type SongListProps = {
@@ -92,7 +232,7 @@ const songListPath = ({
   dir: SortDir
   page?: number
 }) =>
-  `/${toQuery({
+  `${SONG_LIST_PATH}${toQuery({
     q,
     levelMin: levelRange === null || levelRange.min === LEVEL_FILTER_MIN ? null : levelRange.min,
     levelMax: levelRange === null || levelRange.max === LEVEL_FILTER_MAX ? null : levelRange.max,
@@ -188,8 +328,7 @@ const BestCell = ({ song, count, best }: { song: SongSummary; count: PlayerCount
 
 export const SongListPage = ({ songs, q, levelRange, sort, dir, page, limit, total }: SongListProps) => (
   <Layout title="">
-    <h1 class="page-title">ランキング</h1>
-    <form id="song-search" class="box filters" method="get" action="/" role="search" data-live="song-results">
+    <form id="song-search" class="box filters" method="get" action={SONG_LIST_PATH} role="search" data-live="song-results">
       <span id="sort-state" data-sync>
         {sort !== 'id' && <input type="hidden" name="sort" value={sort} />}
         {dir !== 'desc' && <input type="hidden" name="dir" value={dir} />}
@@ -278,6 +417,55 @@ export const SongListPage = ({ songs, q, levelRange, sort, dir, page, limit, tot
       />
     </div>
     <LiveSearchScript />
+  </Layout>
+)
+
+// ---- 今日の曲（日ごとの課題曲と、その日の記録だけのランキング） ----
+
+export type DailyPageProps = { date: string; today: string; songs: DailyRanking[] }
+
+export const DailyPage = ({ date, today, songs }: DailyPageProps) => (
+  <Layout title="今日の曲">
+    <h1 class="page-title">今日の曲</h1>
+    <div class="daily-head">
+      {/* 今日を左端に新しい順。今日はdateを付けない */}
+      <nav class="chips" aria-label="日付">
+        {dailyDates(today).map((d) => (
+          <a
+            class={d === date ? 'chip active num' : 'chip num'}
+            href={`${DAILY_PATH}${toQuery({ date: d === today ? null : d })}`}
+            aria-current={d === date ? 'page' : undefined}
+          >
+            {formatDate(d)}
+          </a>
+        ))}
+      </nav>
+    </div>
+
+    {songs.length === 0 ? (
+      <p class="empty-box">曲はまだ登録されていません</p>
+    ) : (
+      <div class="daily-songs">
+        {songs.map(({ song, rankings }) => (
+          <section class="box daily-song" aria-label={song.title}>
+            <div class="daily-song-head">
+              <a class="daily-song-title" href={songPath(song.gameSongId)}>
+                {song.title}
+              </a>
+              <SongMeta song={song} />
+            </div>
+            <div class="daily-panels">
+              {DAILY_GROUPS.map((group, i) => (
+                <div class="daily-panel">
+                  <h3 class="daily-panel-title">{group.label}</h3>
+                  <RankingList entries={rankings[i]!.entries} emptyMessage="記録なし" />
+                </div>
+              ))}
+            </div>
+          </section>
+        ))}
+      </div>
+    )}
   </Layout>
 )
 
@@ -401,7 +589,7 @@ export const ErrorPage = ({ title, message }: { title: string; message: string }
       <div>
         <h1 class="page-title">{title}</h1>
         <p>{message}</p>
-        <a class="button button-outline" href="/">
+        <a class="button button-outline" href={SONG_LIST_PATH}>
           ランキングへ戻る
         </a>
       </div>

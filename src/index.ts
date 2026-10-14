@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { ApiError, errorResponse } from './lib/http'
+import { isSingleHost, isTopHost } from './lib/site-host'
 import { adminSongs } from './routes/admin-songs'
 import { installations } from './routes/installations'
 import { pages, renderNotFound } from './routes/pages'
@@ -13,6 +14,14 @@ const app = new Hono<{ Bindings: Env }>()
 app.use('*', async (c, next) => {
   await next()
   c.header('X-Robots-Tag', ROBOTS)
+})
+
+// トップのホストは`/`（とpublic/の静的ファイル）だけを出す。それ以外のGET・HEADは同じパスのランキングへ転送する
+app.use('*', async (c, next) => {
+  const url = new URL(c.req.url)
+  if (isSingleHost(c.env) || !isTopHost(c.env, url) || url.pathname === '/') return next()
+  if (c.req.method !== 'GET' && c.req.method !== 'HEAD') return c.notFound()
+  return c.redirect(`${c.env.RANKING_ORIGIN}${url.pathname}${url.search}`, 301)
 })
 
 app.get('/api/v1/health', (c) => c.json({ status: 'ok' }))

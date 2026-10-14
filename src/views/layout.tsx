@@ -1,4 +1,5 @@
 import type { Child } from 'hono/jsx'
+import { useSite } from './site'
 
 export const SITE_NAME = 'Song Typing Theater'
 export const SITE_SUBTITLE = 'ランキング'
@@ -317,6 +318,88 @@ table.ranking { width: 100%; border-collapse: collapse; table-layout: fixed; }
   .best-link .participants { margin-top: 6px; }
 }
 
+
+/* トップ: LyricDataCreatorの入口ページと同じカード（rounded-3xl・p-8・shadow-lg、ホバーで浮く） */
+.top { max-width: 64rem; margin: 0 auto; }
+.top-cards { display: grid; gap: 24px; margin-top: 16px; }
+@media (min-width: 768px) { .top-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.top-card {
+  display: flex; align-items: center; gap: 16px; padding: 32px; border: 1px solid hsl(var(--border));
+  border-radius: 1.5rem; background: hsl(var(--card) / .8); color: hsl(var(--foreground)); text-decoration: none;
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / .1), 0 4px 6px -4px rgb(0 0 0 / .1);
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+.top-card:hover { transform: translateY(-4px); box-shadow: 0 20px 25px -5px rgb(0 0 0 / .1), 0 8px 10px -6px rgb(0 0 0 / .1); }
+.top-card-icon { display: flex; flex: none; padding: 16px; border-radius: 1rem; background: hsl(var(--primary) / .1); color: hsl(var(--primary)); }
+.top-card-icon.accent { background: hsl(var(--accent) / .1); color: hsl(var(--accent)); }
+.top-card h2 { font-size: 1.5rem; font-weight: 600; }
+.top-section { margin-top: 56px; }
+
+/* トップの今日の曲・人気曲 */
+.top-section-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px; margin-bottom: 16px; }
+.top-section-head h2 { font-size: 1.5rem; font-weight: 600; }
+.top-section-note { font-size: .9375rem; font-weight: 600; color: hsl(var(--muted-foreground)); }
+.daily-titles { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
+@media (min-width: 768px) { .daily-titles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1024px) { .daily-titles { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.daily-title { display: block; height: 100%; padding: 14px 16px; color: hsl(var(--foreground)); text-decoration: none; transition: border-color .15s; }
+.daily-title:hover { border-color: hsl(var(--primary) / .5); }
+.daily-title-no { display: block; font-size: .8125rem; font-weight: 600; color: hsl(var(--muted-foreground)); }
+.daily-title-name { display: block; overflow: hidden; margin-top: 2px; font-weight: 700; text-overflow: ellipsis; white-space: pre; }
+.daily-title:hover .daily-title-name { color: hsl(var(--primary)); }
+.top-more { display: inline-block; margin-top: 12px; font-size: .9375rem; font-weight: 600; text-decoration: none; }
+.top-more:hover { text-decoration: underline; }
+.popular-list { margin: 0; padding: 0; overflow: hidden; list-style: none; }
+.popular-list li + li { border-top: 1px solid hsl(var(--border-subtle)); }
+.popular-row {
+  display: grid; grid-template-columns: 2.75rem 4.5rem minmax(0, 3fr) minmax(0, 2fr); align-items: baseline; gap: 4px 12px;
+  padding: 12px 16px; color: hsl(var(--foreground)); text-decoration: none;
+}
+.popular-row:hover { background: hsl(var(--primary) / .07); }
+.popular-row:hover .popular-title { color: hsl(var(--primary)); }
+.popular-rank { font-weight: 700; text-align: right; white-space: nowrap; }
+.popular-rank.rank-1 { color: hsl(var(--primary)); }
+.popular-no { font-size: .875rem; font-weight: 600; color: hsl(var(--muted-foreground)); white-space: nowrap; }
+.popular-title, .popular-artist { overflow: hidden; text-overflow: ellipsis; white-space: pre; }
+.popular-title { font-weight: 600; }
+.popular-artist { font-size: .875rem; color: hsl(var(--secondary-foreground)); }
+/* 狭い画面はアーティスト名を曲名の下に出す */
+@media (max-width: 639px) {
+  .popular-row { grid-template-columns: 2.5rem 4rem minmax(0, 1fr); }
+  .popular-artist { grid-column: 3; }
+}
+
+/* クレジット（LyricDataCreatorのCreditsSection） */
+.credits { margin-top: 64px; padding-top: 32px; border-top: 1px solid hsl(var(--border)); }
+.credits h2 { margin-bottom: 24px; font-size: 1.5rem; font-weight: 600; }
+.credits-group + .credits-group { margin-top: 24px; }
+.credits-label { font-size: .875rem; font-weight: 600; letter-spacing: .025em; color: hsl(var(--muted-foreground)); }
+.credits ul { margin: 8px 0 0; padding: 0; list-style: none; font-size: 1.125rem; }
+.credits li + li { margin-top: 4px; }
+.credits a { font-weight: 600; text-decoration: none; }
+.credits a:hover { color: hsl(var(--primary) / .8); }
+
+/* 今日の曲: 曲ごとのカードにソロ・マルチのその日の上位を2列で並べる。PCはカードを2×2に並べる */
+.daily-head { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin: 24px 0 8px; }
+.daily-songs { display: grid; gap: 24px; margin-top: 16px; }
+@media (min-width: 1024px) { .daily-songs { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.daily-song { overflow: hidden; }
+.daily-song-head { padding: 16px 16px 12px; border-bottom: 1px solid hsl(var(--border-subtle)); }
+.daily-song-title { font-family: "Space Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Noto Sans JP", sans-serif; font-size: 1.375rem; font-weight: 700; color: hsl(var(--foreground)); text-decoration: none; overflow-wrap: anywhere; }
+.daily-song-title:hover { color: hsl(var(--primary)); }
+.daily-song-head .page-meta { margin-top: 4px; }
+.daily-panels { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.daily-panel { min-width: 0; }
+.daily-panel + .daily-panel { border-left: 1px solid hsl(var(--border-subtle)); }
+.daily-panel-title { padding: 12px 16px 10px; border-bottom: 1px solid hsl(var(--border-subtle)); font-size: 1rem; color: hsl(var(--muted-foreground)); }
+.daily-panel .panel-empty { padding: 16px; }
+@media (max-width: 639px) {
+  .daily-panel-title { padding: 10px 12px 8px; }
+  .daily-panel .entry { padding: 8px 12px; }
+  .daily-panel .entry-rank { font-size: 1rem; }
+  .daily-panel .entry-score { font-size: 1.0625rem; }
+  .daily-panel .participants { font-size: .9375rem; }
+}
 `
 
 // 保存したテーマ（light・dark）を描画前に反映する。保存がなければ端末の設定に従う。
@@ -330,7 +413,7 @@ var dark=r.dataset.theme?r.dataset.theme==='dark':matchMedia('(prefers-color-sch
 var next=dark?'light':'dark';r.dataset.theme=next;try{localStorage.setItem('theme',next)}catch(e){}})})()`
 
 // lucideのアイコン（ISCライセンス）。LyricDataCreatorのヘッダーと同じMusic2・Sun・Moon
-const Icon = ({ children, class: className }: { children: Child; class?: string }) => (
+export const Icon = ({ children, class: className }: { children: Child; class?: string }) => (
   <svg
     class={className}
     xmlns="http://www.w3.org/2000/svg"
@@ -348,51 +431,56 @@ const Icon = ({ children, class: className }: { children: Child; class?: string 
   </svg>
 )
 
-export const Layout = ({ title, children }: { title: string; children: Child }) => (
-  <html lang="ja">
-    <head>
-      <meta charset="utf-8" />
-      <meta name="viewport" content="width=device-width, initial-scale=1" />
-      <meta name="robots" content={ROBOTS} />
-      <title>{title ? `${title} - ${SITE_NAME} ${SITE_SUBTITLE}` : `${SITE_NAME} ${SITE_SUBTITLE}`}</title>
-      <link rel="icon" href="/favicon.ico" />
-      <script dangerouslySetInnerHTML={{ __html: THEME_INIT }} />
-      <link rel="preconnect" href="https://fonts.googleapis.com" />
-      <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
-      <link
-        rel="stylesheet"
-        href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap"
-      />
-      <style dangerouslySetInnerHTML={{ __html: CSS }} />
-    </head>
-    <body>
-      <header class="site-header">
-        <div class="header-inner">
-          <a class="brand" href="/">
-            <span class="brand-icon">
-              <Icon>
-                <circle cx="8" cy="18" r="4" />
-                <path d="M12 18V2l7 4" />
+// subtitle=falseはサイト全体の入口（トップ）。副題「ランキング」を出さない
+export const Layout = ({ title, subtitle = true, children }: { title: string; subtitle?: boolean; children: Child }) => {
+  const site = useSite()
+  const siteTitle = subtitle ? `${SITE_NAME} ${SITE_SUBTITLE}` : SITE_NAME
+  return (
+    <html lang="ja">
+      <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="robots" content={ROBOTS} />
+        <title>{title ? `${title} - ${siteTitle}` : siteTitle}</title>
+        <link rel="icon" href="/favicon.ico" />
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT }} />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap"
+        />
+        <style dangerouslySetInnerHTML={{ __html: CSS }} />
+      </head>
+      <body>
+        <header class="site-header">
+          <div class="header-inner">
+            <a class="brand" href={`${site.top}/`}>
+              <span class="brand-icon">
+                <Icon>
+                  <circle cx="8" cy="18" r="4" />
+                  <path d="M12 18V2l7 4" />
+                </Icon>
+              </span>
+              <span>
+                <span class="brand-title">{SITE_NAME}</span>
+                {subtitle && <span class="brand-sub">{SITE_SUBTITLE}</span>}
+              </span>
+            </a>
+            <button id="theme-toggle" class="theme-toggle" type="button" aria-label="テーマを切り替える" hidden>
+              <Icon class="icon-sun">
+                <circle cx="12" cy="12" r="4" />
+                <path d="M12 2v2M12 20v2m-7.07-17.07 1.41 1.41m11.32 11.32 1.41 1.41M2 12h2m16 0h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
               </Icon>
-            </span>
-            <span>
-              <span class="brand-title">{SITE_NAME}</span>
-              <span class="brand-sub">{SITE_SUBTITLE}</span>
-            </span>
-          </a>
-          <button id="theme-toggle" class="theme-toggle" type="button" aria-label="テーマを切り替える" hidden>
-            <Icon class="icon-sun">
-              <circle cx="12" cy="12" r="4" />
-              <path d="M12 2v2M12 20v2m-7.07-17.07 1.41 1.41m11.32 11.32 1.41 1.41M2 12h2m16 0h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
-            </Icon>
-            <Icon class="icon-moon">
-              <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
-            </Icon>
-          </button>
-        </div>
-      </header>
-      <main>{children}</main>
-      <script dangerouslySetInnerHTML={{ __html: THEME_TOGGLE }} />
-    </body>
-  </html>
-)
+              <Icon class="icon-moon">
+                <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
+              </Icon>
+            </button>
+          </div>
+        </header>
+        <main>{children}</main>
+        <script dangerouslySetInnerHTML={{ __html: THEME_TOGGLE }} />
+      </body>
+    </html>
+  )
+}
