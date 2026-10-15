@@ -172,14 +172,14 @@ export const assignLegacyPlayers = (records: readonly LegacyRecord[], newPlayId:
 }
 
 // SQLの文字列リテラル。1文を1行に収めるため改行等の制御文字はchar()で連結する
-const sqlString = (value: string) =>
+export const sqlString = (value: string) =>
   value
     // eslint-disable-next-line no-control-regex -- 制御文字を検出するための意図的な指定
     .split(/([\u0000-\u001f])/u)
     .map((part, i) => (i % 2 === 1 ? `char(${part.charCodeAt(0)})` : `'${part.replaceAll("'", "''")}'`))
     .join(' || ')
 
-const chunk = <T>(items: readonly T[], size: number) =>
+export const chunk = <T>(items: readonly T[], size: number) =>
   Array.from({ length: Math.ceil(items.length / size) }, (_, i) => items.slice(i * size, (i + 1) * size))
 
 // D1の1日の書き込み行数の上限（10万行、UTC 0時リセット）に収まるよう、移行用SQLを日ごとに適用するファイルに分ける。
