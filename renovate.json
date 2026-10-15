@@ -1,0 +1,21 @@
+{
+  "extends": [
+    "config:recommended",
+    ":semanticCommits"
+  ],
+  "labels": [
+    "dependencies"
+  ],
+  "rangeStrategy": "bump",
+  "lockFileMaintenance": {
+    "enabled": true,
+    "automerge": true
+  },
+  "packageRules": [
+    {
+      "matchUpdateTypes": ["minor", "patch"],
+      "automerge": true
+    }
+  ],
+  "platformAutomerge": true
+}
