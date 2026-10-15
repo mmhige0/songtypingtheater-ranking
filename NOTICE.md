@@ -1,0 +1,2 @@
+- [drizzle-orm@0.45.4](https://github.com/drizzle-team/drizzle-orm) - Apache-2.0
+- [hono@4.13.13](https://github.com/honojs/hono) - MIT
