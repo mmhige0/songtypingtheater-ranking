@@ -143,4 +143,43 @@ npx wrangler d1 execute DB --remote --file imports/rebuild-song-best.sql
 - 新IDとの対応（legacy_identity_mapping）を登録した後は、外部キー違反で適用が失敗する（公開後は取り込み直さない）。
 - 生成したSQL・ログ・ダウンロードしたファイルには実際の名前・成績が含まれる。移行・照合が終わったら削除する。
 
+## 旧IDと新IDの紐付け
+
+本人に確認できた旧ID（`legacy-`）と新IDの対応だけを旧記録に反映し、旧記録と新記録を同じ人（チーム）としてランキングに出す。名前の一致だけでは紐付けない（[データ設計](docs/data-design.md#移行確定)の手順6・8）。
+
+1. 名前が完全一致する候補を出す（読み取りのみ。約11万行を読む）。結果は`imports/`のファイルにだけ書き、画面やログに名前を残さない。
+
+   ```sh
+   npx wrangler d1 execute DB --remote --json --command "SELECT l.player_id AS legacy_id, n.player_id AS new_id, l.name_at_play AS name FROM (SELECT DISTINCT player_id, name_at_play FROM play_participant WHERE player_id LIKE 'legacy-%') AS l JOIN (SELECT DISTINCT pp.player_id, pp.name_at_play FROM play_participant AS pp JOIN player AS p ON p.player_id = pp.player_id WHERE p.token_hash IS NOT NULL) AS n ON n.name_at_play = l.name_at_play" > imports/legacy-link-candidates.json
+   ```
+
+2. 本人に確認できた対応だけを`imports/legacy-links.csv`に書く。1つの新IDに複数の旧IDを対応させてよいが、同じ旧IDは1行だけにする。
+
+   ```csv
+   legacyPlayerId,newPlayerId
+   legacy-00001,00000000-0000-4000-8000-000000000001
+   ```
+
+3. 反映用SQLを作る。DBへは書き込まず、件数だけを表示する。
+
+   ```sh
+   npm run link-legacy-players -- --out imports/legacy-links.sql imports/legacy-links.csv
+   ```
+
+4. 現在のブックマークを控えてから適用する。
+
+   ```sh
+   npx wrangler d1 time-travel info DB
+   npx wrangler d1 execute DB --remote --file imports/legacy-links.sql
+   ```
+
+   - 旧記録の参加者を新IDに置き換え、teamKey・playerCountを作り直し、対応を`legacy_identity_mapping`に`confirmed`で登録し、`song_best`を作り直す。時点名は変えない。新しく受け付けた記録は変えない。
+   - 次の場合は失敗する。原因の行をCSVから直して作り直したSQLを流せば、途中まで反映された分も含めて同じ結果になる（同じSQLを2回流しても変わらない）。
+     - 旧IDが既に別の新IDへ対応済み（`CHECK constraint failed`）
+     - 同じプレイにいる複数の旧IDを同じ新IDへ対応させた（`UNIQUE constraint failed`）
+     - 旧ID・新IDがDBにない（`FOREIGN KEY constraint failed`）
+   - 書き込みは対象の参加者・記録の数行ずつと`song_best`の作り直し分。
+- 紐付けた後は旧記録を取り込み直せない（[旧記録の移行](#旧記録の移行)）。
+- 候補・CSV・SQLには実際の名前やIDの対応が含まれる。終わったら削除する。
+
 秘密情報・実際のプレイヤー名や成績・移行用の対応表はGit、PR、Issue、AIの作業メモリ・作業メモやログに残さない。設計書とテストには架空データだけを使う。
