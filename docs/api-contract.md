@@ -193,6 +193,7 @@ Web側はエラー応答のために失敗成績をDBへ登録しない。運用
 - 代表選択はscore降順 → FC達成優先 → receivedAt昇順 → playId辞書順。
 - FC達成優先は同じチームの代表選択だけに使用。異なるチーム間の順位は得点のみの競技順位（100、100、90なら1、1、3）。
 - FC印は選ばれたプレイ自身の値。TAIPEN4人記録も同じ曲・人数のランキングに含める。
+- 代表記録がFCでなく、同じチームにFC記録があれば、そのFC記録の最高得点を代表記録に添えて表示する（順位には使わない。FC絞り込み・受付日時の範囲の絞り込みはこの得点にもかかる）。
 - gameVersionでランキングを分割しない。
 - プレイヤー名検索は、チームごとの代表記録を選んだ後、その記録のnameAtPlayだけを対象にする。最新名・別プレイの名前からIDを引いて検索しない。FC絞り込みを併用する場合はFC記録に絞る → 代表選択 → 名前検索の順とする。検索によって次点の記録へ差し替えない。
 - receivedAtは受付順であって達成順ではない。再送遅延で逆転し得る。受付順を採用する。
@@ -355,6 +356,7 @@ levelSortValueはサーバーがlevelから算出し、本文では受け取ら�
       "rank": 1,
       "score": 1234567,
       "isFullCombo": true,
+      "fullComboScore": null,
       "receivedAt": "2026-10-10T13:00:02.120Z",
       "isLegacy": false,
       "participants": [
@@ -371,7 +373,7 @@ levelSortValueはサーバーがlevelから算出し、本文では受け取ら�
 
 - 処理順はFC絞り込み → チームごとの代表選択 → 順位付け → 名前検索。FC絞り込み時はFC記録の中で順位を付け直す。名前検索では順位を付け直さず、絞り込み前の順位をそのまま返す。
 - 表示順はscore降順 → receivedAt昇順 → playId辞書順。
-- isFullComboのnullは不明（移行分）。isLegacyは移行分（receivedAtはインポート受付時刻）。isTaipen・gameVersionは返さない。
+- isFullComboのnullは不明（移行分）。fullComboScoreは代表記録がFCでないとき、同じチームのFC記録の最高得点（FC記録がない、または代表記録がFCならnull）。isLegacyは移行分（receivedAtはインポート受付時刻）。isTaipen・gameVersionは返さない。
 
 ### 閲覧画面
 

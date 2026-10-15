@@ -10,6 +10,8 @@ export type RankingEntry = {
   score: number
   // nullは不明（移行分）
   isFullCombo: boolean | null
+  // 代表記録がFCでないとき、同じチームのFC記録の最高得点（FC記録がなければnull）。代表記録がFCならnull
+  fullComboScore: number | null
   receivedAt: string
   isLegacy: boolean
   participants: Participant[]
@@ -31,20 +33,23 @@ export type RankingFilter = {
 // ?6・?7 受付日時の範囲（nullなら絞り込まない）。
 // 1. FC絞り込み → 2. teamKeyごとに代表記録を1件選ぶ（得点 → FC → 受付日時 → playId）→
 // 3. 代表記録の得点だけで競技順位を付ける → 4. 代表記録の時点名で検索する。
-// 検索は順位付けの後なので順位は変わらず、代表記録以外（次点）の名前では一致しない
+// 検索は順位付けの後なので順位は変わらず、代表記録以外（次点）の名前では一致しない。
+// best_fc_scoreは絞り込み後のチームの記録のうちFC記録の最高得点（受付日時の範囲もかかる）
 const MATCHED_CTE = `
 WITH representative AS (
   SELECT play_id, score, is_full_combo, received_at, host_player_id,
     ROW_NUMBER() OVER (
       PARTITION BY team_key
       ORDER BY score DESC, is_full_combo IS 1 DESC, received_at, play_id
-    ) AS team_order
+    ) AS team_order,
+    MAX(CASE WHEN is_full_combo = 1 THEN score END) OVER (PARTITION BY team_key) AS best_fc_score
   FROM play
   WHERE song_ref_id = ?1 AND player_count BETWEEN ?2 AND ?3 AND excluded_at IS NULL AND (?4 = 0 OR is_full_combo = 1)
     AND (?6 IS NULL OR (received_at >= ?6 AND received_at < ?7 AND host_player_id IS NOT NULL))
 ),
 ranked AS (
-  SELECT play_id, score, is_full_combo, received_at, host_player_id, RANK() OVER (ORDER BY score DESC) AS rank
+  SELECT play_id, score, is_full_combo, received_at, host_player_id, best_fc_score,
+    RANK() OVER (ORDER BY score DESC) AS rank
   FROM representative
   WHERE team_order = 1
 ),
@@ -62,6 +67,7 @@ type EntryRow = {
   is_full_combo: number | null
   received_at: string
   host_player_id: string | null
+  best_fc_score: number | null
   rank: number
 }
 
@@ -130,6 +136,7 @@ export const fetchGroupRankings = async (
       rank: row.rank,
       score: row.score,
       isFullCombo: toBoolean(row.is_full_combo),
+      fullComboScore: row.is_full_combo === 1 ? null : row.best_fc_score,
       receivedAt: row.received_at,
       isLegacy: row.host_player_id === null,
       participants: participants.get(row.play_id) ?? [],

@@ -33,6 +33,15 @@ export const FullComboMark = () => (
   </span>
 )
 
+// 代表記録がFCでないとき、同じチームのFC記録の最高得点をスコアの下に小さく出す
+const FullComboScore = ({ score }: { score: number | null }) =>
+  score === null ? null : (
+    <span class="fc-score num" title="このチームのフルコンボの最高スコア">
+      <FullComboMark />
+      {formatScore(score)}
+    </span>
+  )
+
 // PCでは一人ずつ2列に並べる（色は表示しない。並びは色のR→B→Y→G順）。長い名前は各列内で省略する
 export const Participants = ({ participants }: { participants: Participant[] }) => (
   <ul class="participants" data-count={participants.length}>
@@ -54,9 +63,12 @@ export const RankingList = ({ entries, emptyMessage }: { entries: RankingEntry[]
         <li class={entry.isFullCombo === true ? 'entry full-combo' : 'entry'}>
           <div class="entry-head">
             <span class={entry.rank === 1 ? 'entry-rank rank-1 num' : 'entry-rank num'}>{entry.rank}位</span>
-            <span class="entry-score num">
-              {entry.isFullCombo === true && <FullComboMark />}
-              {formatScore(entry.score)}
+            <span class="entry-scores">
+              <span class="entry-score num">
+                {entry.isFullCombo === true && <FullComboMark />}
+                {formatScore(entry.score)}
+              </span>
+              <FullComboScore score={entry.fullComboScore} />
             </span>
           </div>
           <Participants participants={entry.participants} />
@@ -88,6 +100,7 @@ export const RankingTable = ({ entries, emptyMessage }: { entries: RankingEntry[
             <td class="score num">
               {entry.isFullCombo === true && <FullComboMark />}
               {formatScore(entry.score)}
+              <FullComboScore score={entry.fullComboScore} />
             </td>
           </tr>
         ))}

@@ -278,6 +278,15 @@ table.songs { width: 100%; min-width: 1080px; border-collapse: collapse; table-l
 .entry-rank.rank-1 { color: hsl(var(--primary)); }
 .entry-score { display: inline-flex; align-items: center; gap: 6px; font-size: 1.375rem; font-weight: 700; white-space: nowrap; }
 .entry-score .fc { font-size: 1.0625rem; }
+.entry-scores { display: inline-flex; flex-direction: column; align-items: flex-end; }
+/* チームのFC最高スコア（代表記録がFCでないとき）。スコアの下に小さく薄く出す */
+.fc-score {
+  display: inline-flex; align-items: center; gap: 4px; font-size: .875rem; font-weight: 600; line-height: 1.3;
+  color: hsl(var(--muted-foreground)); white-space: nowrap;
+}
+.fc-score .fc { font-size: .8125rem; }
+.ranking .score .fc-score { display: flex; justify-content: flex-end; font-size: .9375rem; }
+.ranking .score .fc-score .fc { margin-right: 0; font-size: .875rem; }
 .entry .participants { font-size: 1.0625rem; font-weight: 500; line-height: 1.4; color: hsl(var(--muted-foreground)); }
 .panel-empty { padding: 32px 16px; color: hsl(var(--muted-foreground)); font-size: .875rem; text-align: center; }
 .panel-more { display: block; padding: 12px 16px; border-top: 1px solid hsl(var(--border-subtle)); font-size: .875rem; font-weight: 600; text-decoration: none; }
@@ -300,6 +309,8 @@ table.ranking { width: 100%; border-collapse: collapse; table-layout: fixed; }
   .ranking .participants { font-size: 1rem; }
   .ranking td.score { font-size: 1.1875rem; } .ranking .score { width: 8.5rem; }
   .ranking .score .fc { margin-right: 4px; font-size: 1rem; }
+  .ranking .score .fc-score { font-size: .8125rem; }
+  .ranking .score .fc-score .fc { margin-right: 0; font-size: .75rem; }
 }
 
 /* PC: 枠を使わず列間の余白で名前を区切る。常に2行分確保して人数による縦ずれを防ぐ */
@@ -401,6 +412,7 @@ table.ranking { width: 100%; border-collapse: collapse; table-layout: fixed; }
   .daily-panel .entry { padding: 8px 12px; }
   .daily-panel .entry-rank { font-size: 1rem; }
   .daily-panel .entry-score { font-size: 1.0625rem; }
+  .daily-panel .fc-score { font-size: .8125rem; }
   .daily-panel .participants { font-size: .9375rem; }
 }
 `

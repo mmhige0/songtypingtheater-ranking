@@ -14,6 +14,7 @@ type Entry = {
   rank: number
   score: number
   isFullCombo: boolean | null
+  fullComboScore: number | null
   receivedAt: string
   isLegacy: boolean
   participants: { name: string; color: string }[]
@@ -70,6 +71,31 @@ describe('GET /api/v1/songs/{gameSongId}/rankings', () => {
     const json = await rankings('players=2')
     expect(json.entries).toHaveLength(1)
     expect(json.entries[0]).toMatchObject({ isFullCombo: true, receivedAt: at(10) })
+  })
+
+  it("adds the team's best full combo score when the representative is not a full combo", async () => {
+    // A+B: 代表は100（FCでない）。FCは90・95と除外された99
+    await insertPlay({ playId: 'ab-1', songRefId: song, score: 100, participants: pair(A, 'A', B, 'B'), isFullCombo: false })
+    await insertPlay({ playId: 'ab-2', songRefId: song, score: 90, participants: pair(A, 'A', B, 'B'), isFullCombo: true })
+    await insertPlay({ playId: 'ab-3', songRefId: song, score: 95, participants: pair(B, 'B', A, 'A'), isFullCombo: true })
+    await insertPlay({ playId: 'ab-4', songRefId: song, score: 99, participants: pair(A, 'A', B, 'B'), isFullCombo: true, excluded: true })
+    // A+C: FC記録なし（FC不明の移行分はFCとみなさない）
+    await insertPlay({ playId: 'ac-1', songRefId: song, score: 80, participants: pair(A, 'A', C, 'C'), isFullCombo: false })
+    await insertPlay({ playId: 'ac-2', songRefId: song, score: 75, participants: pair(A, 'A', C, 'C'), isFullCombo: null, hostPlayerId: null })
+    // A+D: 代表記録がFC
+    await insertPlay({ playId: 'ad-1', songRefId: song, score: 70, participants: pair(A, 'A', D, 'D'), isFullCombo: true })
+    await insertPlay({ playId: 'ad-2', songRefId: song, score: 60, participants: pair(A, 'A', D, 'D'), isFullCombo: true })
+
+    expect((await rankings('players=2')).entries.map((e) => [e.rank, e.score, e.isFullCombo, e.fullComboScore])).toEqual([
+      [1, 100, false, 95],
+      [2, 80, false, null],
+      [3, 70, true, null],
+    ])
+    // FC絞り込みでは代表記録がFCなので添えない
+    expect((await rankings('players=2&fc=1')).entries.map((e) => [e.rank, e.score, e.fullComboScore])).toEqual([
+      [1, 95, null],
+      [2, 70, null],
+    ])
   })
 
   it('gives tied teams the same rank (1, 1, 3) ordered by received time', async () => {

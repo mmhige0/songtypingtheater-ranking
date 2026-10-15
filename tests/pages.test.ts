@@ -401,6 +401,17 @@ describe('daily page', () => {
     expect(yesterday).not.toContain('当日の人')
   })
 
+  it("adds the team's best full combo score only from the records of that day", async () => {
+    const [song1] = await dailySongs(env.DB, '2026-10-14')
+    const ref = (await env.DB.prepare('SELECT id FROM song WHERE game_song_id = ?').bind(song1!.gameSongId).first<{ id: number }>())!.id
+    await insertPlay({ playId: 'best', songRefId: ref, score: 900, participants: solo(0, '当日の人'), receivedAt: '2026-10-14T01:00:00.000Z' })
+    await insertPlay({ playId: 'fc', songRefId: ref, score: 700, participants: solo(0, '当日の人'), isFullCombo: true, receivedAt: '2026-10-14T02:00:00.000Z' })
+    await insertPlay({ playId: 'old-fc', songRefId: ref, score: 800, participants: solo(0, '当日の人'), isFullCombo: true, receivedAt: '2026-10-13T14:59:59.999Z' })
+    const text = await html('/daily')
+    expect(text).toMatch(/class="fc-score num"[^>]*>.*?700<\/span>/)
+    expect(text).not.toContain('>800<')
+  })
+
   it('ranks 2 to 4 player records together as multi, without the player count', async () => {
     const [song1] = await dailySongs(env.DB, '2026-10-14')
     const ref = (await env.DB.prepare('SELECT id FROM song WHERE game_song_id = ?').bind(song1!.gameSongId).first<{ id: number }>())!.id
@@ -474,6 +485,20 @@ describe('song ranking page', () => {
     expect(text).toContain('aria-label="フルコンボ"')
     expect(text).not.toContain('受付')
     expect(text).toContain('記録はまだありません')
+  })
+
+  it("shows the team's best full combo score under a representative without a full combo", async () => {
+    const team = [
+      { id: IDS[0]!, name: 'ひとりめ', color: 'R' as const },
+      { id: IDS[1]!, name: 'ふたりめ', color: 'B' as const },
+    ]
+    await insertPlay({ playId: 'best', songRefId: song, score: 12000, participants: team, isFullCombo: false })
+    await insertPlay({ playId: 'fc', songRefId: song, score: 9500, participants: team, isFullCombo: true })
+    for (const path of ['/songs/001?players=2', '/songs/001/players/2']) {
+      const text = await html(path)
+      expect(text, path).toMatch(/class="fc-score num" title="このチームのフルコンボの最高スコア">.*?9,500<\/span>/)
+      expect(text, path).toContain('12,000')
+    }
   })
 
   it('ignores retired full-combo filters on page URLs and keeps all records visible', async () => {
