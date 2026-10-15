@@ -323,7 +323,7 @@ table.ranking { width: 100%; border-collapse: collapse; table-layout: fixed; }
 
 
 /* トップ: LyricDataCreatorの入口ページと同じカード（rounded-3xl・p-8・shadow-lg、ホバーで浮く） */
-.top { max-width: 64rem; margin: 0 auto; }
+.top-page { max-width: 64rem; margin: 0 auto; }
 .top-cards { display: grid; gap: 24px; margin-top: 16px; }
 @media (min-width: 768px) { .top-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 .top-card {

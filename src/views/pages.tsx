@@ -150,7 +150,7 @@ export const TopPage = ({ today, dailySongs }: TopPageProps) => {
   const site = useSite()
   return (
     <Layout title="" subtitle={false}>
-      <div class="top">
+      <div class="top-page">
         <nav class="top-cards" aria-label="メニュー">
           {/* lucideのTrophy・Edit3・Keyboard */}
           <TopCard href={`${site.ranking}${SONG_LIST_PATH}`} title="ランキング">
