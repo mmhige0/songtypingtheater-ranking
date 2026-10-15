@@ -11,9 +11,10 @@ const IDS = Array.from({ length: 12 }, (_, i) => `00000000-0000-4000-8000-${Stri
 
 const get = (path: string, testEnv: Env = env) => app.request(path, {}, testEnv)
 
-// トップのホスト（vitest.config.tsで本番の値に固定）。相対パスのリクエストはlocalhost＝ランキング側になる
+// 画面はメインドメインで表示し、旧ランキングホストの画面は転送する。
 const TOP = 'https://kayomodoki.com/'
-const RANKING = 'https://ranking.kayomodoki.com'
+const RANKING = 'https://kayomodoki.com'
+const LEGACY = 'https://ranking.kayomodoki.com'
 
 const html = async (path: string, status = 200) => {
   const res = await get(path)
@@ -154,14 +155,42 @@ describe('top page', () => {
     expect(nextDay.songs).toHaveLength(1)
   })
 
-  it('redirects other paths on the top host to the ranking host', async () => {
-    for (const path of ['songs', 'songs/001?players=2', 'api/v1/songs']) {
+  it('serves ranking pages on the main host without redirects', async () => {
+    for (const path of ['songs', 'songs/001?players=2', 'songs/001/players/2', 'daily', 'api/v1/songs']) {
       const res = await get(`${TOP}${path}`)
-      expect(res.status, path).toBe(301)
-      expect(res.headers.get('Location')).toBe(`${RANKING}/${path}`)
+      expect(res.status, path).toBe(200)
+      expect(res.headers.has('Location')).toBe(false)
     }
-    const post = await app.request(`${TOP}api/v1/plays`, { method: 'POST' }, env)
+  })
+
+  it('redirects old ranking pages with their paths and queries for GET and HEAD', async () => {
+    for (const path of ['/songs', '/songs/001?players=2', '/songs/001/players/2?page=2', '/daily?date=2026-10-14']) {
+      for (const method of ['GET', 'HEAD']) {
+        const res = await app.request(`${LEGACY}${path}`, { method }, env)
+        expect(res.status, `${method} ${path}`).toBe(301)
+        expect(res.headers.get('Location')).toBe(`${RANKING}${path}`)
+      }
+    }
+  })
+
+  it('keeps APIs on the old host without redirecting requests or their bodies', async () => {
+    for (const origin of [RANKING, LEGACY]) {
+      expect((await get(`${origin}/api/v1/health`)).status).toBe(200)
+      expect((await get(`${origin}/api/v1/songs`)).status).toBe(200)
+      for (const path of ['/api', '/api/missing']) {
+        const res = await get(`${origin}${path}`)
+        expect(res.status).toBe(404)
+        expect(res.headers.has('Location')).toBe(false)
+      }
+      const res = await app.request(`${origin}/api/v1/installations`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
+      }, env)
+      expect(res.status).toBe(400)
+      expect(res.headers.has('Location')).toBe(false)
+    }
+    const post = await app.request(`${LEGACY}/songs`, { method: 'POST' }, env)
     expect(post.status).toBe(404)
+    expect(post.headers.has('Location')).toBe(false)
   })
 
   it('serves both the top and the ranking on one host when the origins are the same', async () => {
@@ -176,9 +205,9 @@ describe('top page', () => {
 
   it('redirects the ranking root to the song list with the same query', async () => {
     for (const query of ['', '?q=abc', '?sort=level&dir=asc', '?page=2']) {
-      const res = await get(`/${query}`)
+      const res = await get(`${LEGACY}/${query}`)
       expect(res.status, query).toBe(301)
-      expect(res.headers.get('Location')).toBe(`/songs${query}`)
+      expect(res.headers.get('Location')).toBe(`${RANKING}/songs${query}`)
     }
   })
 })

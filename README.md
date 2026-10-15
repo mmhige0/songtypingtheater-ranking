@@ -3,7 +3,8 @@
 2026-10-11時点。プロジェクト名: songtypingtheater-ranking。
 送信系API（曲登録・初回登録・成績送信）、送信回数制限、ランキング閲覧API・画面を実装し、Cloudflareへデプロイ済み。旧記録の移行インポーターは未実装。
 
-- URL: `https://ranking.kayomodoki.com`（APIの送信先とランキング画面）、`https://kayomodoki.com`（トップ。同じWorker）
+- 画面: `https://kayomodoki.com/`（トップ）、`https://kayomodoki.com/songs`（ランキング）、`https://kayomodoki.com/daily`（今日の曲）。
+- APIの送信先: `https://ranking.kayomodoki.com/api/v1/…`（変更なし。同じWorker）。旧ランキング画面のGET・HEADは、パスとクエリを保ってメインドメインへ301転送する。旧ルート `/` は `/songs` へ転送する。
 
 ## 文書
 

@@ -17,7 +17,7 @@ Cloudflareの無料プランで構築する。他構成との比較は行わず�
 | バックアップ | D1 Time Travel（7日）＋管理者の手動`wrangler d1 export` |
 | 言語・テスト | TypeScript（strict）、Vitest＋`@cloudflare/vitest-plugin`（旧`@cloudflare/vitest-pool-workers`） |
 | 設定・型 | `wrangler.jsonc`。Workerの型は`wrangler types`で生成（`worker-configuration.d.ts`はコミットせず、型チェック時に生成） |
-| ドメイン | `ranking.kayomodoki.com`とトップの`kayomodoki.com`（同じWorkerのカスタムドメイン。ホストの振り分けはwranglerの`vars`の`TOP_ORIGIN`・`RANKING_ORIGIN`で決める） |
+| ドメイン | `kayomodoki.com`（トップ・ランキング画面）と`ranking.kayomodoki.com`（既存APIの送信先。同じWorkerのカスタムドメイン）。`TOP_ORIGIN`が画面の公開先、`RANKING_ORIGIN`が旧ランキング・APIのホスト。旧画面はメインドメインへ301転送する |
 
 LyricDataCreator（Vercel）とは運用基盤が別になる。連携は公開の曲一覧APIの読み取りだけで、相互に依存しない。サイト全体の入口（トップ）はこのWorkerが`kayomodoki.com`で出し、LyricDataCreatorへはリンクするだけ（リンク先は`src/views/site.ts`の`LDC_ORIGIN`）。
 

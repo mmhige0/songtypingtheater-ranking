@@ -41,7 +41,7 @@ const render = (c: Context, page: Child, status: ContentfulStatusCode = 200) =>
   c.html(
     <>
       {raw('<!DOCTYPE html>')}
-      <SiteContext.Provider value={{ top: c.env.TOP_ORIGIN, ranking: c.env.RANKING_ORIGIN }}>{page}</SiteContext.Provider>
+      <SiteContext.Provider value={{ top: c.env.TOP_ORIGIN, ranking: c.env.TOP_ORIGIN }}>{page}</SiteContext.Provider>
     </>,
     status,
   )
@@ -66,8 +66,8 @@ pages.onError((error, c) => {
   return render(c, <ErrorPage title={title} message={error.message} />, error.status)
 })
 
-// トップのホストではトップを出す。それ以外のホストの`/`は曲一覧へ転送する
-// （曲一覧が`/`にあった頃のクエリ付きURLも同じクエリのまま引き継ぐ）
+// メインホストではトップを出す。旧ランキングホストはindex.tsで転送済み。
+// localhost等の別ホストは、従来どおり曲一覧へクエリを保って転送する。
 pages.get('/', async (c) => {
   const url = new URL(c.req.url)
   if (!isTopHost(c.env, url)) return c.redirect(`${SONG_LIST_PATH}${url.search}`, 301)
