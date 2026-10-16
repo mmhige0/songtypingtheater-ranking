@@ -367,10 +367,11 @@ levelSortValueはサーバーがlevelから算出し、本文では受け取ら�
   ],
   "page": 1,
   "limit": 50,
-  "total": 1
+  "hasNext": false
 }
 ```
 
+- ランキングの総件数は集計・返却しない。`hasNext`は次ページの有無で、表示件数より1件多く取得して判定する。画面も総件数・総ページ数を表示せず、前へ・次へで移動する。
 - 処理順はFC絞り込み → チームごとの代表選択 → 順位付け → 名前検索。FC絞り込み時はFC記録の中で順位を付け直す。名前検索では順位を付け直さず、絞り込み前の順位をそのまま返す。
 - 表示順はscore降順 → receivedAt昇順 → playId辞書順。
 - isFullComboのnullは不明（移行分）。fullComboScoreは代表記録がFCでないとき、同じチームのFC記録の最高得点（FC記録がない、または代表記録がFCならnull）。isLegacyは移行分（receivedAtはインポート受付時刻）。isTaipen・gameVersionは返さない。

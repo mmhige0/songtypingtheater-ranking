@@ -181,24 +181,19 @@ export const LiveSearchScript = () => <script dangerouslySetInnerHTML={{ __html:
 
 export const Pagination = ({
   page,
-  limit,
-  total,
+  hasNext,
   href,
 }: {
   page: number
-  limit: number
-  total: number
+  hasNext: boolean
   href: (page: number) => string
 }) => {
-  const lastPage = Math.max(1, Math.ceil(total / limit))
-  if (lastPage === 1 && page === 1) return null
+  if (!hasNext && page === 1) return null
   return (
     <nav class="pagination" aria-label="ページ送り">
-      <PageStep label="前へ" href={page > 1 ? href(Math.min(page - 1, lastPage)) : null} />
-      <span class="num small muted">
-        {page} / {lastPage} ページ（{total}件）
-      </span>
-      <PageStep label="次へ" href={page < lastPage ? href(page + 1) : null} />
+      <PageStep label="前へ" href={page > 1 ? href(page - 1) : null} />
+      <span class="num small muted">{page} ページ</span>
+      <PageStep label="次へ" href={hasNext ? href(page + 1) : null} />
     </nav>
   )
 }

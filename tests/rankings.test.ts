@@ -19,7 +19,7 @@ type Entry = {
   isLegacy: boolean
   participants: { name: string; color: string }[]
 }
-type RankingResponse = { song: Record<string, unknown>; players: number; entries: Entry[]; page: number; limit: number; total: number }
+type RankingResponse = { song: Record<string, unknown>; players: number; entries: Entry[]; page: number; limit: number; hasNext: boolean }
 
 const get = (path: string) => app.request(path, {}, env)
 
@@ -55,7 +55,8 @@ describe('GET /api/v1/songs/{gameSongId}/rankings', () => {
       [1, 110],
       [2, 95],
     ])
-    expect(json.total).toBe(2)
+    expect(json.hasNext).toBe(false)
+    expect(json).not.toHaveProperty('total')
   })
 
   it('prefers a full combo among the same team at the same score, even if received later', async () => {
@@ -145,7 +146,7 @@ describe('GET /api/v1/songs/{gameSongId}/rankings', () => {
     expect((await rankings('players=2&name=OldName')).entries).toEqual([])
     const json = await rankings(`players=2&name=${encodeURIComponent('carol')}`)
     expect(json.entries.map((e) => [e.rank, e.score])).toEqual([[2, 100]])
-    expect(json.total).toBe(1)
+    expect(json.hasNext).toBe(false)
   })
 
   it('applies the full combo filter before choosing the representative and searching', async () => {
@@ -198,8 +199,11 @@ describe('GET /api/v1/songs/{gameSongId}/rankings', () => {
       })
     }
     // Aは2回プレイしているので4チーム
+    const first = await rankings('players=1&limit=2')
+    expect(first.hasNext).toBe(true)
+    expect(first.entries.map((e) => e.score)).toEqual([100, 99])
     const json = await rankings('players=1&limit=2&page=2')
-    expect(json).toMatchObject({ page: 2, limit: 2, total: 4 })
+    expect(json).toMatchObject({ page: 2, limit: 2, hasNext: false })
     expect(json.entries.map((e) => [e.rank, e.score])).toEqual([
       [3, 98],
       [4, 97],
@@ -208,7 +212,7 @@ describe('GET /api/v1/songs/{gameSongId}/rankings', () => {
 
   it('returns an empty ranking for a song without records', async () => {
     const json = await rankings('players=4')
-    expect(json).toMatchObject({ players: 4, entries: [], total: 0, page: 1, limit: 50 })
+    expect(json).toMatchObject({ players: 4, entries: [], hasNext: false, page: 1, limit: 50 })
   })
 
   it('rejects invalid queries and unknown songs', async () => {

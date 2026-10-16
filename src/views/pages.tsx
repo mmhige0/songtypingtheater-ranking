@@ -493,7 +493,7 @@ export type SongRankingProps = {
 
 const emptyMessage = (filtered: boolean) => (filtered ? '条件に一致する記録はありません' : '記録はまだありません')
 
-export const SongRankingPage = ({ song, rankings, selected, name, limit }: SongRankingProps) => (
+export const SongRankingPage = ({ song, rankings, selected, name }: SongRankingProps) => (
   <Layout title={song.title}>
     <h1 class="page-title">{song.title}</h1>
     <SongMeta song={song} />
@@ -532,12 +532,12 @@ export const SongRankingPage = ({ song, rankings, selected, name, limit }: SongR
             <section class={`box panel panel-${count}`} aria-label={`${count}人ランキング`}>
               <h2 class="panel-title">{count}人</h2>
               <RankingList entries={ranking.entries} emptyMessage={emptyMessage(name !== null)} />
-              {ranking.total > limit && (
+              {ranking.hasNext && (
                 <a
                   class="panel-more"
                   href={`${songPath(song.gameSongId)}/players/${count}${toQuery({ name })}`}
                 >
-                  すべて見る（{ranking.total}件）
+                  すべて見る
                 </a>
               )}
             </section>
@@ -560,7 +560,7 @@ export type PlayerRankingProps = {
   limit: number
 }
 
-export const PlayerRankingPage = ({ song, players, ranking, name, page, limit }: PlayerRankingProps) => {
+export const PlayerRankingPage = ({ song, players, ranking, name, page }: PlayerRankingProps) => {
   const path = `${songPath(song.gameSongId)}/players/${players}`
   return (
     <Layout title={`${song.title}（${players}人）`}>
@@ -583,8 +583,7 @@ export const PlayerRankingPage = ({ song, players, ranking, name, page, limit }:
         </section>
         <Pagination
           page={page}
-          limit={limit}
-          total={ranking.total}
+          hasNext={ranking.hasNext}
           href={(p) => `${path}${toQuery({ name, page: pageParam(p) })}`}
         />
       </div>

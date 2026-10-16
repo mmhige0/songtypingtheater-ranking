@@ -17,7 +17,7 @@ export type RankingEntry = {
   participants: Participant[]
 }
 
-export type RankingPage = { entries: RankingEntry[]; total: number }
+export type RankingPage = { entries: RankingEntry[]; hasNext: boolean }
 
 // 人数の範囲（minとmaxを含む）。範囲内の人数の記録をまとめて1つのランキングにする
 export type PlayerCountRange = { min: PlayerCount; max: PlayerCount }
@@ -113,25 +113,26 @@ export const fetchGroupRankings = async (
       filter.received?.to ?? null,
     ] as const
   const results = await db.batch<unknown>(
-    ranges.flatMap((range) => [
+    ranges.map((range) =>
       db
         .prepare(`${MATCHED_CTE} SELECT * FROM matched ORDER BY score DESC, received_at, play_id LIMIT ?8 OFFSET ?9`)
-        .bind(...params(range), limit, offset),
-      db.prepare(`${MATCHED_CTE} SELECT COUNT(*) AS total FROM matched`).bind(...params(range)),
-    ]),
+        .bind(...params(range), limit + 1, offset),
+    ),
   )
 
-  const pages = ranges.map((_, i) => ({
-    rows: results[i * 2]!.results as EntryRow[],
-    total: (results[i * 2 + 1]!.results[0] as { total: number }).total,
+  // 1件先読みで次ページの有無を判定し、総件数の再集計を避ける。
+  // 先読み分の参加者は取得せず、参加者クエリのパラメーター上限を守る。
+  const pages = results.map((result) => ({
+    rows: (result.results as EntryRow[]).slice(0, limit),
+    hasNext: result.results.length > limit,
   }))
   const participants = await fetchParticipants(
     db,
     pages.flatMap((page) => page.rows.map((row) => row.play_id)),
   )
 
-  return pages.map(({ rows, total }) => ({
-    total,
+  return pages.map(({ rows, hasNext }) => ({
+    hasNext,
     entries: rows.map((row) => ({
       rank: row.rank,
       score: row.score,

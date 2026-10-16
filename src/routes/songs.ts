@@ -59,6 +59,6 @@ songsRoute.get('/:gameSongId/rankings', async (c) => {
   if (!song) throw new ApiError(404, 'NOT_FOUND', '曲が見つかりません')
 
   const rankings = await fetchRankings(c.env.DB, song.id, [players], filter, { limit, offset: (page - 1) * limit })
-  const { entries, total } = rankings.get(players)!
-  return c.json({ song: toPublicSong(song), players, entries, page, limit, total })
+  const { entries, hasNext } = rankings.get(players)!
+  return c.json({ song: toPublicSong(song), players, entries, page, limit, hasNext })
 })
