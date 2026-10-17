@@ -1,0 +1,74 @@
+name: PR Preview
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+
+permissions:
+  contents: read
+
+# 更新と削除を直列化し、close後に古いデプロイが完了して残ることを防ぐ。
+concurrency:
+  group: preview-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    # secretsを扱うため、同一リポジトリの通常PRだけを対象にする。
+    if: >-
+      github.event.action != 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
+    environment:
+      name: preview-pr-${{ github.event.pull_request.number }}
+      url: ${{ steps.deploy.outputs.deployment-url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - name: Deploy read-only preview
+        id: deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: '4.149.0'
+          command: deploy --config wrangler.preview.json --name songtypingtheater-ranking-pr-${{ github.event.pull_request.number }}
+
+  cleanup:
+    if: >-
+      github.event.action == 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      # WorkerだけをAPIで削除する。共有D1・本番Workerには触れない。
+      - name: Delete preview Worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          node --input-type=module <<'JS'
+          const { CLOUDFLARE_API_TOKEN: token, CLOUDFLARE_ACCOUNT_ID: account, PR_NUMBER: number } = process.env;
+          if (!/^\d+$/.test(number)) throw new Error('Invalid PR number');
+          const name = 'songtypingtheater-ranking-pr-' + number;
+          const res = await fetch('https://api.cloudflare.com/client/v4/accounts/' + account + '/workers/scripts/' + name, {
+            method: 'DELETE',
+            headers: { Authorization: 'Bearer ' + token },
+          });
+          if (!res.ok && res.status !== 404) {
+            throw new Error('Preview cleanup failed: HTTP ' + res.status + ' ' + await res.text());
+          }
+          JS
