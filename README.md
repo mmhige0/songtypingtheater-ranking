@@ -3,7 +3,7 @@
 2026-10-11時点。プロジェクト名: songtypingtheater-ranking。
 送信系API（曲登録・初回登録・成績送信）、送信回数制限、ランキング閲覧API・画面を実装し、Cloudflareへデプロイ済み。旧記録の移行インポーターは未実装。
 
-- 画面: `https://kayomodoki.com/`（トップ）、`https://kayomodoki.com/songs`（ランキング）、`https://kayomodoki.com/daily`（今日の曲）。
+- 画面: `https://kayomodoki.com/`（トップ）、`https://kayomodoki.com/songs`（ランキング）、`https://kayomodoki.com/daily`（今日の曲・現在停止中）。
 - APIの送信先: `https://ranking.kayomodoki.com/api/v1/…`（変更なし。同じWorker）。旧ランキング画面のGET・HEADは、パスとクエリを保ってメインドメインへ301転送する。旧ルート `/` は `/songs` へ転送する。
 
 ## 文書
@@ -42,6 +42,17 @@ npm run check             # lint・型チェック・テスト
 
 Node.js 22を使用。Cloudflare上の初期設定は[システム構成](docs/architecture.md#cloudflare上の初期設定管理者が実施)を参照。
 ローカルの`npm run dev`で曲登録APIを使う場合は、`.dev.vars.example`を`.dev.vars`にコピーして`ADMIN_API_KEY`を設定する。
+
+## 今日の曲・人気曲の再表示
+
+現在は両機能を一時停止している。トップの見出し・内容・リンクを非表示にし、データ取得も行わない。`/daily` は404を返す。記録や曲データは削除しない。
+
+`src/lib/page-features.ts` の `PAGE_FEATURES` で、再開する機能だけ `true` に変更し、`npm run check` を通してデプロイする。
+
+- `dailySongs`: トップの今日の曲と `/daily` をまとめて再開する。
+- `popularSongs`: トップの人気曲を再開する。昨日までの7日間を集計するため、再開前にDBの読み取り負荷を確認する。
+
+表示処理・集計処理・CSS・再開時のテストは残してある。DBの変更やデータの再登録は不要。
 
 ## デプロイ
 

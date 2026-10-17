@@ -1,3 +1,4 @@
+import { PAGE_FEATURES } from '../lib/page-features'
 import { Hono, type Context } from 'hono'
 import { raw } from 'hono/html'
 import type { Child } from 'hono/jsx'
@@ -6,8 +7,7 @@ import { dailySongs, fetchDailyRankings, jstDate, parseDailyDate } from '../lib/
 import { ApiError } from '../lib/http'
 import { limitByIp } from '../lib/rate-limit'
 import { isTopHost } from '../lib/site-host'
-// 人気曲はクエリ負荷のため一時停止中
-// import { fetchPopularSongs } from '../lib/popular-songs'
+import { fetchPopularSongs } from '../lib/popular-songs'
 import { fetchBestScores, fetchRankings } from '../lib/ranking'
 import { findApprovedSong, searchSongs } from '../lib/song-query'
 import {
@@ -72,11 +72,11 @@ pages.get('/', async (c) => {
   const url = new URL(c.req.url)
   if (!isTopHost(c.env, url)) return c.redirect(`${SONG_LIST_PATH}${url.search}`, 301)
   const today = jstDate(Date.now())
-  // 人気曲はクエリ負荷のため一時停止中
-  // const [songs, popular] = await Promise.all([dailySongs(c.env.DB, today), fetchPopularSongs(c.env.DB, today)])
-  // return render(c, <TopPage today={today} dailySongs={songs} popular={popular} />)
-  const songs = await dailySongs(c.env.DB, today)
-  return render(c, <TopPage today={today} dailySongs={songs} />)
+  const [songs, popular] = await Promise.all([
+    PAGE_FEATURES.dailySongs ? dailySongs(c.env.DB, today) : [],
+    PAGE_FEATURES.popularSongs ? fetchPopularSongs(c.env.DB, today) : null,
+  ])
+  return render(c, <TopPage today={today} dailySongs={songs} popular={popular} />)
 })
 
 pages.get(SONG_LIST_PATH, async (c) => {
@@ -162,6 +162,7 @@ pages.get('/songs/:gameSongId/players/:players', async (c) => {
 
 // 今日の曲。dateで今日を含む7日間の日付を選ぶ（指定なしは今日）
 pages.get(DAILY_PATH, async (c) => {
+  if (!PAGE_FEATURES.dailySongs) return renderNotFound(c)
   const today = jstDate(Date.now())
   const date = parseDailyDate(c.req.query('date'), today)
   const songs = await fetchDailyRankings(c.env.DB, date, today)

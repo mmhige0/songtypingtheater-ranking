@@ -1,5 +1,5 @@
-// 人気曲はクエリ負荷のため一時停止中
-// import type { PopularSongs } from '../lib/popular-songs'
+import { PAGE_FEATURES } from '../lib/page-features'
+import type { PopularSongs } from '../lib/popular-songs'
 import { DAILY_GROUPS, dailyDates, type DailyRanking } from '../lib/daily'
 import type { BestScore, BestScores, RankingPage } from '../lib/ranking'
 import type { Child } from 'hono/jsx'
@@ -87,29 +87,28 @@ const TopCard = ({ href, title, accent = false, children }: { href: string; titl
   </a>
 )
 
-// 人気曲はクエリ負荷のため一時停止中
-// // 人気曲。順位・曲番・曲名・アーティスト名の順。行全体がその曲のランキングへのリンク
-// const PopularSongList = ({ songs, rankingOrigin }: { songs: PopularSongs['songs']; rankingOrigin: string }) =>
-//   songs.length === 0 ? (
-//     <p class="empty-box">記録はまだありません</p>
-//   ) : (
-//     <ol class="box popular-list">
-//       {songs.map((song) => (
-//         <li>
-//           <a class="popular-row" href={`${rankingOrigin}${songPath(song.gameSongId)}`}>
-//             <span class={song.rank === 1 ? 'popular-rank rank-1 num' : 'popular-rank num'}>{song.rank}位</span>
-//             <span class="popular-no num">No.{song.gameSongId}</span>
-//             <span class="popular-title" title={song.title}>
-//               {song.title}
-//             </span>
-//             <span class="popular-artist" title={song.artist ?? undefined}>
-//               {song.artist}
-//             </span>
-//           </a>
-//         </li>
-//       ))}
-//     </ol>
-//   )
+// 人気曲。順位・曲番・曲名・アーティスト名の順。行全体がその曲のランキングへのリンク
+const PopularSongList = ({ songs, rankingOrigin }: { songs: PopularSongs['songs']; rankingOrigin: string }) =>
+  songs.length === 0 ? (
+    <p class="empty-box">記録はまだありません</p>
+  ) : (
+    <ol class="box popular-list">
+      {songs.map((song) => (
+        <li>
+          <a class="popular-row" href={`${rankingOrigin}${songPath(song.gameSongId)}`}>
+            <span class={song.rank === 1 ? 'popular-rank rank-1 num' : 'popular-rank num'}>{song.rank}位</span>
+            <span class="popular-no num">No.{song.gameSongId}</span>
+            <span class="popular-title" title={song.title}>
+              {song.title}
+            </span>
+            <span class="popular-artist" title={song.artist ?? undefined}>
+              {song.artist}
+            </span>
+          </a>
+        </li>
+      ))}
+    </ol>
+  )
 
 const CREDIT_GROUPS = [
   {
@@ -143,10 +142,9 @@ const Credits = () => (
   </section>
 )
 
-// 人気曲はクエリ負荷のため一時停止中（復活時はpopular: PopularSongsを戻す）
-export type TopPageProps = { today: string; dailySongs: SongSummary[] }
+export type TopPageProps = { today: string; dailySongs: SongSummary[]; popular?: PopularSongs | null }
 
-export const TopPage = ({ today, dailySongs }: TopPageProps) => {
+export const TopPage = ({ today, dailySongs, popular }: TopPageProps) => {
   const site = useSite()
   return (
     <Layout title="" subtitle={false}>
@@ -168,7 +166,7 @@ export const TopPage = ({ today, dailySongs }: TopPageProps) => {
           </TopCard>
         </nav>
 
-        <section class="top-section" aria-labelledby="daily-title">
+        {PAGE_FEATURES.dailySongs && <section class="top-section" aria-labelledby="daily-title">
           <div class="top-section-head">
             <h2 id="daily-title">今日の曲</h2>
             <span class="top-section-note num">{formatDate(today)}</span>
@@ -190,17 +188,9 @@ export const TopPage = ({ today, dailySongs }: TopPageProps) => {
           <a class="top-more" href={`${site.ranking}${DAILY_PATH}`}>
             今日の曲のランキングへ →
           </a>
-        </section>
+        </section>}
 
-        <section class="top-section" aria-labelledby="popular-title">
-          <div class="top-section-head">
-            <h2 id="popular-title">人気曲</h2>
-          </div>
-          <p class="empty-box">準備中です</p>
-        </section>
-
-        {/* 人気曲はクエリ負荷のため一時停止中
-        <section class="top-section" aria-labelledby="popular-title">
+        {PAGE_FEATURES.popularSongs && popular && <section class="top-section" aria-labelledby="popular-title">
           <div class="top-section-head">
             <h2 id="popular-title">人気曲</h2>
             <span class="top-section-note num">
@@ -208,8 +198,7 @@ export const TopPage = ({ today, dailySongs }: TopPageProps) => {
             </span>
           </div>
           <PopularSongList songs={popular.songs} rankingOrigin={site.ranking} />
-        </section>
-        */}
+        </section>}
 
         <Credits />
       </div>

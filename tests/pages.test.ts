@@ -1,3 +1,4 @@
+import { PAGE_FEATURES } from '../src/lib/page-features'
 import { env } from 'cloudflare:workers'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import app from '../src/index'
@@ -28,6 +29,8 @@ const html = async (path: string, status = 200) => {
 let song: number
 
 beforeEach(async () => {
+  PAGE_FEATURES.dailySongs = true
+  PAGE_FEATURES.popularSongs = true
   await resetDb()
   song = await insertSong('001', '架空の曲名', { artist: '架空のアーティスト', level: '5+', levelSortValue: 16 })
   await insertPlayers(...IDS)
@@ -84,15 +87,31 @@ describe('top page', () => {
     expect(text).toContain(`href="${RANKING}/daily"`)
   })
 
-  it('shows the popular songs heading as coming soon while paused', async () => {
+  it('hides paused features and rejects daily URLs without accessing the database', async () => {
+    PAGE_FEATURES.dailySongs = false
+    PAGE_FEATURES.popularSongs = false
+    const prepare = vi.spyOn(env.DB, 'prepare').mockImplementation(() => { throw new Error('Unexpected DB query') })
+    try {
+      const text = await html(TOP)
+      expect(text).not.toContain('id="daily-title"')
+      expect(text).not.toContain('id="popular-title"')
+      expect(text).not.toContain(`href="${RANKING}/daily"`)
+      expect(text).not.toContain('準備中です')
+      for (const path of ['/daily', '/daily?date=invalid']) await html(path, 404)
+      expect(prepare).not.toHaveBeenCalled()
+    } finally {
+      prepare.mockRestore()
+    }
+  })
+
+  it('shows the popular songs empty state when enabled', async () => {
     const popular = popularSection(await html(TOP))
     expect(popular).toContain('>人気曲</h2>')
-    expect(popular).toContain('>準備中です<')
+    expect(popular).toContain('記録はまだありません')
     expect(popular).not.toContain('class="popular-row"')
   })
 
-  // 人気曲はクエリ負荷のため一時停止中
-  it.skip('counts plays by song over the 7 days up to yesterday', async () => {
+  it('counts plays by song over the 7 days up to yesterday', async () => {
     const song2 = await insertSong('002', '別の曲')
     const at = (ms: number) => new Date(Date.parse(FIRST) + ms).toISOString()
     for (let i = 0; i < 3; i++) {
@@ -129,7 +148,7 @@ describe('top page', () => {
     expect(row.indexOf('架空の曲名')).toBeLessThan(row.indexOf('架空のアーティスト'))
   })
 
-  it.skip('gives tied counts the same rank and shows 5 at most', async () => {
+  it('gives tied counts the same rank and shows 5 at most', async () => {
     for (let i = 0; i < 6; i++) {
       const ref = await insertSong(String(100 + i), `曲${i}`)
       await insertPlay({ playId: `p${i}`, songRefId: ref, score: 1, participants: solo(i, `P${i}`), receivedAt: FIRST })
