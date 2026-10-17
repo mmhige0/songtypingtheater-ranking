@@ -56,7 +56,7 @@ Node.js 22を使用。Cloudflare上の初期設定は[システム構成](docs/a
 
 ## デプロイ
 
-`main`へpushすると、GitHub Actions（[ci.yml](.github/workflows/ci.yml)）がlint・型チェック・テストの成功後に`wrangler deploy`で本番へデプロイする。PRではデプロイしない。
+`main`へpushすると、GitHub Actions（[ci.yml](.github/workflows/ci.yml)）がlint・型チェック・テストの成功後に`wrangler deploy`で本番へデプロイする。同一リポジトリのPRでは、本番D1を共用する閲覧専用プレビューを別Workerに作成する（[確認方法・初回設定](docs/pr-previews.md)）。
 
 - D1マイグレーションは自動適用しない。マイグレーションを含む変更は、`main`へpushする**前**に`npm run db:migrate:remote`で本番へ適用する（先にデプロイすると新しいコードが未作成のテーブル・列を参照して失敗する）。
 - `ADMIN_API_KEY`はWorkerのsecretとして設定済みのものを使う。CIからは変更しない。
