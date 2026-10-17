@@ -17,7 +17,7 @@ const LIGHT = `
   --destructive: 0 75% 55%; --success: 150 65% 38%;
   --border: 215 20% 88%; --border-subtle: 215 15% 92%;
   --field: 215 25% 98%; --field-border: 215 20% 88%; --ring: 215 80% 55%;
-  --header: 215 30% 97%; --gold: 42 95% 42%; --full-combo-bg: 210 75% 96%; --slider-track: 215 20% 92%;
+  --header: 215 30% 97%; --gold: 42 95% 42%; --full-combo-bg: 210 75% 96%; --full-combo-hover-bg: 210 75% 91%; --table-hover-bg: 215 30% 15% / .05; --slider-track: 215 20% 92%;
   --table-head: 215 35% 25%; --table-head-foreground: 0 0% 100%;
   --sun: block; --moon: none;
 `
@@ -31,7 +31,7 @@ const DARK = `
   --destructive: 0 65% 55%; --success: 150 55% 42%;
   --border: 220 18% 20%; --border-subtle: 220 15% 16%;
   --field: 220 14% 15%; --field-border: 0 0% 32%; --ring: 200 65% 50%;
-  --header: 220 15% 11%; --gold: 45 95% 58%; --full-combo-bg: 210 30% 18%; --slider-track: 220 15% 32%;
+  --header: 220 15% 11%; --gold: 45 95% 58%; --full-combo-bg: 210 30% 18%; --full-combo-hover-bg: 210 32% 24%; --table-hover-bg: 210 20% 95% / .06; --slider-track: 220 15% 32%;
   --table-head: 215 30% 24%; --table-head-foreground: 0 0% 100%;
   --sun: none; --moon: block;
 `
@@ -226,7 +226,7 @@ table.songs { width: 100%; min-width: 1080px; border-collapse: collapse; table-l
 .songs .song-cell { position: relative; }
 .cell-link { color: inherit; text-decoration: none; }
 .cell-link::after { content: ""; position: absolute; inset: 0; }
-.songs tr:has(.song-cell:hover) td { background: hsl(var(--primary) / .07); }
+.songs tr:has(.song-cell:hover) td { background: hsl(var(--table-hover-bg)); }
 .songs tr:has(.song-cell:hover) .song-title { color: hsl(var(--primary)); }
 .songs .no { font-weight: 600; color: hsl(var(--muted-foreground)); white-space: nowrap; }
 .songs .level { font-weight: 600; white-space: nowrap; }
@@ -243,8 +243,10 @@ table.songs { width: 100%; min-width: 1080px; border-collapse: collapse; table-l
 /* 1位はスコアを上に、プレイヤー名をその下に小さく薄く出す */
 /* 人数のセルは全体がその人数のランキングへのリンク。押せるのはそのセルだけなので、ハイライトもセル単位 */
 .songs .best { position: relative; }
-.songs .best:hover { background: hsl(var(--primary) / .07); }
-.songs .best.full-combo:hover { background: hsl(var(--full-combo-bg)); }
+.songs .best:hover { background: hsl(var(--table-hover-bg)); }
+/* 行・セルのホバー中もフルコンボを区別し、通常時より少し濃くする */
+.songs tr:has(.song-cell:hover) td.full-combo,
+.songs .best.full-combo:hover { background: hsl(var(--full-combo-hover-bg)); }
 .best-link { display: block; min-width: 0; color: hsl(var(--foreground)); }
 .best-empty { color: hsl(var(--muted-foreground)); }
 .best-link .participants { margin-top: 2px; font-size: .8125rem; font-weight: 500; color: hsl(var(--muted-foreground)); }
