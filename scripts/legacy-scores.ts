@@ -81,11 +81,7 @@ export const parseWorkbook = (sheets: readonly Sheet[]): ParseResult => {
       result.heldTabs.push({ tab, reason: '曲名の見出し（【曲番】）が見つからない' })
       continue
     }
-    const titleSongId = TITLE_SONG_ID.exec(text(sheet.rows[titleIndex]![TITLE_COLUMN]) ?? '')?.[1]
-    if (titleSongId !== tab) {
-      result.heldTabs.push({ tab, reason: `見出しの曲番（${titleSongId}）がタブ名と異なる` })
-      continue
-    }
+    // 曲番号はタブ名を正とし、コピー元の番号が見出しに残っていても採用する。
     const labelIndex = findLabelRow(sheet.rows, titleIndex)
     const labels = sheet.rows[labelIndex]
     if (!labels) {

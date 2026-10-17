@@ -16,7 +16,11 @@
     "test": "vitest run",
     "check": "npm run lint && npm run typecheck && npm run test",
     "register-songs": "tsx scripts/register-songs.ts",
+    "import-recovery-scores": "tsx scripts/import-recovery-scores.ts",
+    "prepare-recovery-scores": "tsx scripts/prepare-recovery-scores.ts",
+    "fill-recovery-player-ids": "tsx scripts/fill-recovery-player-ids.ts",
     "migrate-legacy-scores": "tsx scripts/migrate-legacy-scores.ts",
+    "compare-legacy-sheets": "tsx scripts/compare-legacy-sheets.ts",
     "rebuild-song-best": "tsx scripts/rebuild-song-best.ts",
     "link-legacy-players": "tsx scripts/link-legacy-players.ts"
   },

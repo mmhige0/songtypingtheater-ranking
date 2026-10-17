@@ -113,17 +113,24 @@ describe('parseWorkbook', () => {
     ])
   })
 
-  it('holds tabs whose heading does not match the tab name or the expected columns', () => {
+  it('uses the tab name as the song ID even when the title contains another ID', () => {
+    const result = parseWorkbook([
+      { name: '437', rows: [title('001'), LABELS, row(1, { one: [100, 'アリス'] })] },
+    ])
+    expect(result.records).toEqual([record('437', 1, 100, ['アリス'])])
+    expect(result.heldTabs).toEqual([])
+  })
+
+  it('holds tabs missing a title or the expected columns', () => {
     const data = row(1, { one: [100, 'アリス'] })
     const shifted = LABELS.map((c, i) => (i === 4 ? 'スコア' : c))
     const result = parseWorkbook([
-      { name: '001', rows: [title('010'), LABELS, data] },
       { name: '002', rows: [[null, '架空の曲'], LABELS, data] },
       { name: '003', rows: [title('003'), shifted, data] },
       { name: '004', rows: [title('004'), data] },
     ])
     expect(result.records).toEqual([])
-    expect(result.heldTabs.map((h) => h.tab)).toEqual(['001', '002', '003', '004'])
+    expect(result.heldTabs.map((h) => h.tab)).toEqual(['002', '003', '004'])
   })
 })
 
