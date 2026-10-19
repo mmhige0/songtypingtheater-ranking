@@ -15,7 +15,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
-          node-version: 22.23.3
+          node-version: 24.22.0
           cache: npm
       - run: npm ci
       - run: npm run lint
@@ -34,7 +34,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
-          node-version: 22.23.3
+          node-version: 24.22.0
           cache: npm
       - run: npm ci
       # D1マイグレーションは自動適用しない（READMEの「デプロイ」参照）
