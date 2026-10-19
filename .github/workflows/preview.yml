@@ -27,7 +27,7 @@ jobs:
       name: preview-pr-${{ github.event.pull_request.number }}
       url: ${{ steps.deploy.outputs.deployment-url }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
