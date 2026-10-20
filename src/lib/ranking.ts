@@ -35,7 +35,9 @@ export type RankingFilter = {
 // 3. 代表記録の得点だけで競技順位を付ける → 4. 代表記録の時点名で検索する。
 // 検索は順位付けの後なので順位は変わらず、代表記録以外（次点）の名前では一致しない。
 // best_fc_scoreは絞り込み後のチームの記録のうちFC記録の最高得点（受付日時の範囲もかかる）
-const MATCHED_CTE = `
+// 人数が固定なら等価条件を使い、既存インデックスを利用しやすくする。
+// ?3は範囲指定で使うため、人数固定でもバインド位置は維持する。
+const matchedCte = ({ min, max }: PlayerCountRange) => `
 WITH representative AS (
   SELECT play_id, score, is_full_combo, received_at, host_player_id,
     ROW_NUMBER() OVER (
@@ -44,7 +46,7 @@ WITH representative AS (
     ) AS team_order,
     MAX(CASE WHEN is_full_combo = 1 THEN score END) OVER (PARTITION BY team_key) AS best_fc_score
   FROM play
-  WHERE song_ref_id = ?1 AND player_count BETWEEN ?2 AND ?3 AND excluded_at IS NULL AND (?4 = 0 OR is_full_combo = 1)
+  WHERE song_ref_id = ?1 AND ${min === max ? 'player_count = ?2' : 'player_count BETWEEN ?2 AND ?3'} AND excluded_at IS NULL AND (?4 = 0 OR is_full_combo = 1)
     AND (?6 IS NULL OR (received_at >= ?6 AND received_at < ?7 AND host_player_id IS NOT NULL))
 ),
 ranked AS (
@@ -115,7 +117,7 @@ export const fetchGroupRankings = async (
   const results = await db.batch<unknown>(
     ranges.map((range) =>
       db
-        .prepare(`${MATCHED_CTE} SELECT * FROM matched ORDER BY score DESC, received_at, play_id LIMIT ?8 OFFSET ?9`)
+        .prepare(`${matchedCte(range)} SELECT * FROM matched ORDER BY score DESC, received_at, play_id LIMIT ?8 OFFSET ?9`)
         .bind(...params(range), limit + 1, offset),
     ),
   )
