@@ -136,3 +136,16 @@ export const findApprovedSong = async (db: D1Database, gameSongId: string) => {
     .first<SongRow>()
   return row ? toSummary(row) : null
 }
+
+// 既存の曲キャッシュを共有し、公開曲の曲番号順で隣接曲を探す。端では循環しない。
+export type AdjacentSongs = { previous: string | null; next: string | null }
+
+export const findAdjacentSongs = async (db: D1Database, gameSongId: string): Promise<AdjacentSongs> => {
+  const songs = await listApprovedSongs(db)
+  const index = songs.findIndex((song) => song.gameSongId === gameSongId)
+  if (index < 0) return { previous: null, next: null }
+  return {
+    previous: songs[index - 1]?.gameSongId ?? null,
+    next: songs[index + 1]?.gameSongId ?? null,
+  }
+}

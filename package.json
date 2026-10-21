@@ -13,7 +13,7 @@
     "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
     "lint": "eslint .",
     "typecheck": "wrangler types --strict-vars=false && tsc --noEmit && tsc --noEmit -p tsconfig.node.json",
-    "test": "vitest run",
+    "test": "node --test scripts/check-song-navigation.mjs && vitest run",
     "check": "npm run lint && npm run typecheck && npm run test",
     "register-songs": "tsx scripts/register-songs.ts",
     "migrate-legacy-scores": "tsx scripts/migrate-legacy-scores.ts",
