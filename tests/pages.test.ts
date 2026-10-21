@@ -697,3 +697,16 @@ describe('view rate limit', () => {
     expect(keys).toEqual(['198.51.100.1', '198.51.100.1'])
   })
 })
+
+describe('song keyboard navigation', () => {
+  it('uses approved songs in numeric order, skips gaps, and stops at the ends', async () => {
+    await insertSong('010', '架空の曲10')
+    await insertSong('1000', '架空の曲1000')
+    const hidden = await insertSong('020', '非公開の架空曲')
+    await env.DB.prepare("UPDATE song SET status = 'pending' WHERE id = ?").bind(hidden).run()
+    expect(await html('/songs/001')).toContain('data-previous="" data-next="010"')
+    expect(await html('/songs/010?name=test&players=3')).toContain('data-previous="001" data-next="1000"')
+    expect(await html('/songs/1000/players/4?page=2')).toContain('data-previous="010" data-next=""')
+    expect(await html('/songs')).not.toContain('id="song-navigation"')
+  })
+})

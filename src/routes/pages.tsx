@@ -9,7 +9,7 @@ import { limitByIp } from '../lib/rate-limit'
 import { isTopHost } from '../lib/site-host'
 import { fetchPopularSongs } from '../lib/popular-songs'
 import { fetchBestScores, fetchRankings } from '../lib/ranking'
-import { findApprovedSong, searchSongs } from '../lib/song-query'
+import { findAdjacentSongs, findApprovedSong, searchSongs } from '../lib/song-query'
 import {
   PLAYER_COUNTS,
   parseLevelRange,
@@ -126,6 +126,7 @@ pages.get('/songs/:gameSongId', async (c) => {
   return render(
     c,
     <SongRankingPage
+      adjacent={await findAdjacentSongs(c.env.DB, song.gameSongId)}
       song={song}
       rankings={rankings}
       selected={selected}
@@ -150,6 +151,7 @@ pages.get('/songs/:gameSongId/players/:players', async (c) => {
   return render(
     c,
     <PlayerRankingPage
+      adjacent={await findAdjacentSongs(c.env.DB, song.gameSongId)}
       song={song}
       players={players}
       ranking={rankings.get(players)!}
