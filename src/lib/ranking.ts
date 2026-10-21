@@ -69,7 +69,7 @@ const matchedCte = (range: PlayerCountRange, filter: RankingFilter) => {
   if (filter.received || filter.fullComboOnly) return historyMatchedCte(range)
   return `
 WITH ranked AS (
-  SELECT play_id, score, is_full_combo, received_at, host_player_id, best_fc_score,
+  SELECT play_id, score, is_full_combo, received_at, host_player_id, best_fc_score, participants,
     RANK() OVER (ORDER BY score DESC) AS rank
   FROM team_best
   WHERE song_ref_id = ?1 AND ${range.min === range.max ? 'player_count = ?2' : 'player_count BETWEEN ?2 AND ?3'}
@@ -77,8 +77,8 @@ WITH ranked AS (
 matched AS (
   SELECT * FROM ranked
   WHERE ?5 IS NULL OR EXISTS (
-    SELECT 1 FROM play_participant AS pp
-    WHERE pp.play_id = ranked.play_id AND instr(lower(pp.name_at_play), lower(?5)) > 0
+    SELECT 1 FROM json_each(ranked.participants) AS pp
+    WHERE instr(lower(json_extract(pp.value, '$.name')), lower(?5)) > 0
   )
   -- 履歴集計とバインド位置をそろえる（全期間・FC限定なしなので常に真）
   AND ?4 = 0 AND ?6 IS NULL AND ?7 IS NULL
@@ -93,6 +93,7 @@ type EntryRow = {
   host_player_id: string | null
   best_fc_score: number | null
   rank: number
+  participants?: string
 }
 
 const COLOR_ORDER = new Map<string, number>(PLAYER_COLORS.map((color, i) => [color, i]))
@@ -168,7 +169,7 @@ export const fetchGroupRankings = async (
   }))
   const participants = await fetchParticipants(
     db,
-    pages.flatMap((page) => page.rows.map((row) => row.play_id)),
+    pages.flatMap((page) => page.rows.filter((row) => row.participants === undefined).map((row) => row.play_id)),
   )
 
   return pages.map(({ rows, hasNext }) => ({
@@ -180,7 +181,9 @@ export const fetchGroupRankings = async (
       fullComboScore: row.is_full_combo === 1 ? null : row.best_fc_score,
       receivedAt: row.received_at,
       isLegacy: row.host_player_id === null,
-      participants: participants.get(row.play_id) ?? [],
+      participants: row.participants === undefined
+        ? participants.get(row.play_id) ?? []
+        : JSON.parse(row.participants) as Participant[],
     })),
   }))
 }
@@ -259,4 +262,3 @@ export const fetchBestScores = async (db: D1Database, songRefIds: number[]): Pro
   }
   return bestBySong
 }
-

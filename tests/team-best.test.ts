@@ -95,6 +95,27 @@ describe('team_best maintenance', () => {
     expect(unchanged.meta.rows_written).toBe(1)
   })
 
+  it('adds one snapshot write after all participants, only for the representative', async () => {
+    const insert = (id: string, score: number, excluded = false, name = '赤') => env.DB.batch([
+      env.DB.prepare('INSERT INTO play (play_id, song_ref_id, score, is_full_combo, received_at, player_count, team_key, excluded_at) VALUES (?, ?, ?, 0, ?, 2, ?, ?)')
+        .bind(id, song, score, at(0), toTeamKey([A, B]), excluded ? at(0) : null),
+      env.DB.prepare("INSERT INTO play_participant VALUES (?, ?, ?, 'R')").bind(id, A, name),
+      env.DB.prepare("INSERT INTO play_participant VALUES (?, ?, '青', 'B')").bind(id, B),
+    ])
+    const baseline = await insert('excluded-pair', 200, true)
+    const first = await insert('first-pair', 100)
+    const loser = await insert('loser-pair', 90)
+    const better = await insert('better-pair', 110, false, '新しい名前')
+    const sameNames = await insert('same-names-pair', 120, false, '新しい名前')
+    const writes = (results: D1Result[]) => results.reduce((sum, result) => sum + result.meta.rows_written, 0)
+    expect(writes(first) - writes(baseline)).toBe(3)
+    expect(writes(better) - writes(baseline)).toBe(2)
+    expect(writes(loser)).toBe(writes(baseline))
+    expect(writes(sameNames) - writes(baseline)).toBe(1)
+    expect(first[1]!.meta.rows_written).toBe(baseline[1]!.meta.rows_written)
+    expect(first[2]!.meta.rows_written - baseline[2]!.meta.rows_written).toBe(1)
+  })
+
   it('is transactionally rolled back when participant insertion fails', async () => {
     await expect(insertPlay({ playId: 'bad', songRefId: song, score: 100, participants: solo('missing-player') })).rejects.toThrow()
     expect(await row()).toBeNull()
@@ -110,7 +131,8 @@ describe('team_best maintenance', () => {
     const migration = env.TEST_MIGRATIONS.find((m) => m.name === '0003_team_best.sql')!
     // 空DBへのマイグレーション適用だけでなく、既存履歴のあるアップグレードも実行する。
     await env.DB.batch([
-      ...['insert', 'update', 'delete'].map((event) => env.DB.prepare(`DROP TRIGGER team_best_play_${event}`)),
+      ...['play', 'participant'].flatMap((table) =>
+        ['insert', 'update', 'delete'].map((event) => env.DB.prepare(`DROP TRIGGER team_best_${table}_${event}`))),
       env.DB.prepare('DROP TABLE team_best'),
       ...migration.queries.map((sql) => env.DB.prepare(sql)),
     ])
@@ -121,6 +143,38 @@ describe('team_best maintenance', () => {
 })
 
 describe('team_best read path', () => {
+  it('reads cached names/colors without querying participants, and tracks corrections and fallback', async () => {
+    await insertPlay({ playId: 'older', songRefId: song, score: 80, participants: solo(A, '旧記録') })
+    await insertPlay({ playId: 'top', songRefId: song, score: 100, participants: solo(A, '最高記録') })
+    const statements: string[] = []
+    const measured = {
+      prepare: (sql: string) => { statements.push(sql); return env.DB.prepare(sql) },
+      batch: env.DB.batch.bind(env.DB),
+    } as D1Database
+    const result = await fetchRankings(measured, song, [1], { ...filter, name: '最高' }, { limit: 10, offset: 0 })
+    expect(result.get(1)!.entries[0]!.participants).toEqual([{ name: '最高記録', color: 'R' }])
+    expect(statements.some((sql) => sql.includes('play_participant'))).toBe(false)
+    await env.DB.prepare("UPDATE play_participant SET name_at_play = '訂正名', color_at_play = 'B' WHERE play_id = 'top'").run()
+    expect((await ranking({ ...filter, name: '訂正' })).get(1)!.entries[0]!.participants).toEqual([{ name: '訂正名', color: 'B' }])
+    expect((await ranking({ ...filter, name: '最高' })).get(1)!.entries).toEqual([])
+    await env.DB.prepare("DELETE FROM play WHERE play_id = 'top'").run()
+    expect((await ranking()).get(1)!.entries[0]!.participants).toEqual([{ name: '旧記録', color: 'R' }])
+    await env.DB.prepare("DELETE FROM play_participant WHERE play_id = 'older'").run()
+    expect((await ranking()).get(1)!.entries[0]!.participants).toEqual([])
+  })
+
+  it('fills the snapshot once after the final participant and does not write for a losing team play', async () => {
+    const team = [{ id: B, name: '青', color: 'B' as const }, { id: A, name: '赤', color: 'R' as const }]
+    await insertPlay({ playId: 'pair', songRefId: song, score: 100, participants: team })
+    const stored = await env.DB.prepare("SELECT participants FROM team_best WHERE play_id = 'pair'").first<string>('participants')
+    expect(JSON.parse(stored!)).toEqual([{ name: '赤', color: 'R' }, { name: '青', color: 'B' }])
+    await insertPlay({ playId: 'loser-pair', songRefId: song, score: 80, participants: team })
+    const updated = await env.DB.prepare("UPDATE play_participant SET name_at_play = '次点の訂正' WHERE play_id = 'loser-pair' AND player_id = ?").bind(A).run()
+    expect(updated.meta.rows_written).toBe(1)
+    await env.DB.prepare("UPDATE play SET excluded_at = ? WHERE play_id = 'pair'").bind(at(1)).run()
+    expect((await fetchRankings(env.DB, song, [2], filter, { limit: 10, offset: 0 })).get(2)!.entries[0]!.participants[0]!.name).toBe('次点の訂正')
+  })
+
   it('uses history for date ranges and FC-only rankings, including their representative names', async () => {
     await insertPlay({ playId: 'old', songRefId: song, score: 100, participants: solo(A, '過去の最高'), receivedAt: at(-1) })
     await insertPlay({ playId: 'recent', songRefId: song, score: 80, participants: solo(A, '期間内'), receivedAt: at(2) })
@@ -167,7 +221,7 @@ describe('team_best read path', () => {
       await env.DB.batch(statements)
     }
     let reads = 0
-    // 実際にランキングが使った集計クエリのmetaを測る。参加者取得は両方式で同じなので除く。
+    // 実際にランキングが使った集計クエリのmetaを測る。履歴方式の参加者追加取得は含めない（集計表方式では不要）。
     const measured = {
       prepare: env.DB.prepare.bind(env.DB),
       batch: async (statements: D1PreparedStatement[]) => {

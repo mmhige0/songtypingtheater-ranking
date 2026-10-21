@@ -313,9 +313,9 @@ describe('buildSqlParts', () => {
   })
 
   describe('split into files within the daily write limit', () => {
-    // 成績5行＋チーム集計2行＋参加者4行×人数、移行用プレイヤー3行で見積もる
+    // 成績5行＋チーム集計3行＋参加者4行×人数、移行用プレイヤー3行で見積もる
     const MAX_WRITES = 200
-    // 10人から作る重複のない2人組40件（移行用プレイヤー10人で30行、成績は1件15行で計630行（song_best再集計分は別））
+    // 10人から作る重複のない2人組40件（移行用プレイヤー10人で30行、成績は1件16行で計670行（song_best再集計分は別））
     const records = Array.from({ length: 10 }, (_, a) => Array.from({ length: 10 - a - 1 }, (_, b) => [a, a + b + 1]))
       .flat()
       .slice(0, 40)
@@ -389,4 +389,3 @@ describe('summarize', () => {
     })
   })
 })
-

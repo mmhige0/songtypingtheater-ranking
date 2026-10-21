@@ -8,13 +8,14 @@ CREATE TABLE `team_best` (
 	`received_at` text NOT NULL,
 	`host_player_id` text,
 	`best_fc_score` integer,
+	`participants` text DEFAULT '[]' NOT NULL,
 	PRIMARY KEY(`song_ref_id`, `player_count`, `team_key`),
 	FOREIGN KEY (`song_ref_id`) REFERENCES `song`(`id`) ON UPDATE no action ON DELETE no action
 );
 
 --> statement-breakpoint
 -- 既存履歴を1チーム1行に集計する。履歴・参加者は削除しない。
-INSERT INTO team_best (song_ref_id, player_count, team_key, play_id, score, is_full_combo, received_at, host_player_id, best_fc_score)
+INSERT INTO team_best (song_ref_id, player_count, team_key, play_id, score, is_full_combo, received_at, host_player_id, best_fc_score, participants)
 WITH candidates AS (
   SELECT song_ref_id, player_count, team_key, play_id, score, is_full_combo, received_at, host_player_id,
     MAX(CASE WHEN is_full_combo = 1 THEN score END) OVER (
@@ -27,7 +28,9 @@ WITH candidates AS (
   FROM play
   WHERE excluded_at IS NULL AND (1 = 1)
 )
-SELECT song_ref_id, player_count, team_key, play_id, score, is_full_combo, received_at, host_player_id, best_fc_score FROM candidates WHERE team_order = 1;
+SELECT song_ref_id, player_count, team_key, play_id, score, is_full_combo, received_at, host_player_id, best_fc_score, (SELECT json_group_array(json_object('name', name_at_play, 'color', color_at_play))
+  FROM (SELECT name_at_play, color_at_play FROM play_participant
+    WHERE play_id = candidates.play_id ORDER BY CASE color_at_play WHEN 'R' THEN 0 WHEN 'B' THEN 1 WHEN 'Y' THEN 2 ELSE 3 END)) FROM candidates WHERE team_order = 1;
 --> statement-breakpoint
 -- 受付時は対象チームの主キーを1回探し、代表またはFC最高点が変わるときだけ書く。
 CREATE TRIGGER team_best_play_insert AFTER INSERT ON play
@@ -81,7 +84,7 @@ WHEN OLD.play_id IS NOT NEW.play_id OR
   OLD.excluded_at IS NOT NEW.excluded_at
 BEGIN
   DELETE FROM team_best WHERE (song_ref_id = OLD.song_ref_id AND player_count = OLD.player_count AND team_key = OLD.team_key) OR (song_ref_id = NEW.song_ref_id AND player_count = NEW.player_count AND team_key = NEW.team_key);
-  INSERT INTO team_best (song_ref_id, player_count, team_key, play_id, score, is_full_combo, received_at, host_player_id, best_fc_score)
+  INSERT INTO team_best (song_ref_id, player_count, team_key, play_id, score, is_full_combo, received_at, host_player_id, best_fc_score, participants)
   WITH candidates AS (
   SELECT song_ref_id, player_count, team_key, play_id, score, is_full_combo, received_at, host_player_id,
     MAX(CASE WHEN is_full_combo = 1 THEN score END) OVER (
@@ -94,7 +97,9 @@ BEGIN
   FROM play
   WHERE excluded_at IS NULL AND ((song_ref_id = OLD.song_ref_id AND player_count = OLD.player_count AND team_key = OLD.team_key) OR (song_ref_id = NEW.song_ref_id AND player_count = NEW.player_count AND team_key = NEW.team_key))
 )
-SELECT song_ref_id, player_count, team_key, play_id, score, is_full_combo, received_at, host_player_id, best_fc_score FROM candidates WHERE team_order = 1;
+SELECT song_ref_id, player_count, team_key, play_id, score, is_full_combo, received_at, host_player_id, best_fc_score, (SELECT json_group_array(json_object('name', name_at_play, 'color', color_at_play))
+  FROM (SELECT name_at_play, color_at_play FROM play_participant
+    WHERE play_id = candidates.play_id ORDER BY CASE color_at_play WHEN 'R' THEN 0 WHEN 'B' THEN 1 WHEN 'Y' THEN 2 ELSE 3 END)) FROM candidates WHERE team_order = 1;
 END;
 --> statement-breakpoint
 -- 代表かFC最高点の削除時だけ次点を復帰する。参加者は別表なのでCASCADEの順序に依存しない。
@@ -105,7 +110,7 @@ WHEN OLD.excluded_at IS NULL AND EXISTS (
 )
 BEGIN
   DELETE FROM team_best WHERE song_ref_id = OLD.song_ref_id AND player_count = OLD.player_count AND team_key = OLD.team_key;
-  INSERT INTO team_best (song_ref_id, player_count, team_key, play_id, score, is_full_combo, received_at, host_player_id, best_fc_score)
+  INSERT INTO team_best (song_ref_id, player_count, team_key, play_id, score, is_full_combo, received_at, host_player_id, best_fc_score, participants)
   WITH candidates AS (
   SELECT song_ref_id, player_count, team_key, play_id, score, is_full_combo, received_at, host_player_id,
     MAX(CASE WHEN is_full_combo = 1 THEN score END) OVER (
@@ -118,5 +123,50 @@ BEGIN
   FROM play
   WHERE excluded_at IS NULL AND (song_ref_id = OLD.song_ref_id AND player_count = OLD.player_count AND team_key = OLD.team_key)
 )
-SELECT song_ref_id, player_count, team_key, play_id, score, is_full_combo, received_at, host_player_id, best_fc_score FROM candidates WHERE team_order = 1;
+SELECT song_ref_id, player_count, team_key, play_id, score, is_full_combo, received_at, host_player_id, best_fc_score, (SELECT json_group_array(json_object('name', name_at_play, 'color', color_at_play))
+  FROM (SELECT name_at_play, color_at_play FROM play_participant
+    WHERE play_id = candidates.play_id ORDER BY CASE color_at_play WHEN 'R' THEN 0 WHEN 'B' THEN 1 WHEN 'Y' THEN 2 ELSE 3 END)) FROM candidates WHERE team_order = 1;
+END;
+
+--> statement-breakpoint
+-- 代表の参加者だけ反映する。INSERTは全員保存された時点で1回更新する。
+CREATE TRIGGER team_best_participant_insert AFTER INSERT ON play_participant
+BEGIN
+  UPDATE team_best SET participants = (SELECT json_group_array(json_object('name', name_at_play, 'color', color_at_play))
+  FROM (SELECT name_at_play, color_at_play FROM play_participant
+    WHERE play_id = team_best.play_id ORDER BY CASE color_at_play WHEN 'R' THEN 0 WHEN 'B' THEN 1 WHEN 'Y' THEN 2 ELSE 3 END))
+  WHERE (song_ref_id, player_count, team_key) IN (
+    SELECT song_ref_id, player_count, team_key FROM play WHERE play_id IN (NEW.play_id)
+  ) AND play_id IN (NEW.play_id) AND (SELECT COUNT(*) FROM play_participant WHERE play_id = NEW.play_id) = player_count
+    AND participants IS NOT (SELECT json_group_array(json_object('name', name_at_play, 'color', color_at_play))
+  FROM (SELECT name_at_play, color_at_play FROM play_participant
+    WHERE play_id = team_best.play_id ORDER BY CASE color_at_play WHEN 'R' THEN 0 WHEN 'B' THEN 1 WHEN 'Y' THEN 2 ELSE 3 END));
+END;
+--> statement-breakpoint
+-- 代表の参加者だけ反映する。INSERTは全員保存された時点で1回更新する。
+CREATE TRIGGER team_best_participant_update AFTER UPDATE ON play_participant
+BEGIN
+  UPDATE team_best SET participants = (SELECT json_group_array(json_object('name', name_at_play, 'color', color_at_play))
+  FROM (SELECT name_at_play, color_at_play FROM play_participant
+    WHERE play_id = team_best.play_id ORDER BY CASE color_at_play WHEN 'R' THEN 0 WHEN 'B' THEN 1 WHEN 'Y' THEN 2 ELSE 3 END))
+  WHERE (song_ref_id, player_count, team_key) IN (
+    SELECT song_ref_id, player_count, team_key FROM play WHERE play_id IN (OLD.play_id, NEW.play_id)
+  ) AND play_id IN (OLD.play_id, NEW.play_id)
+    AND participants IS NOT (SELECT json_group_array(json_object('name', name_at_play, 'color', color_at_play))
+  FROM (SELECT name_at_play, color_at_play FROM play_participant
+    WHERE play_id = team_best.play_id ORDER BY CASE color_at_play WHEN 'R' THEN 0 WHEN 'B' THEN 1 WHEN 'Y' THEN 2 ELSE 3 END));
+END;
+--> statement-breakpoint
+-- 代表の参加者だけ反映する。INSERTは全員保存された時点で1回更新する。
+CREATE TRIGGER team_best_participant_delete AFTER DELETE ON play_participant
+BEGIN
+  UPDATE team_best SET participants = (SELECT json_group_array(json_object('name', name_at_play, 'color', color_at_play))
+  FROM (SELECT name_at_play, color_at_play FROM play_participant
+    WHERE play_id = team_best.play_id ORDER BY CASE color_at_play WHEN 'R' THEN 0 WHEN 'B' THEN 1 WHEN 'Y' THEN 2 ELSE 3 END))
+  WHERE (song_ref_id, player_count, team_key) IN (
+    SELECT song_ref_id, player_count, team_key FROM play WHERE play_id IN (OLD.play_id)
+  ) AND play_id IN (OLD.play_id)
+    AND participants IS NOT (SELECT json_group_array(json_object('name', name_at_play, 'color', color_at_play))
+  FROM (SELECT name_at_play, color_at_play FROM play_participant
+    WHERE play_id = team_best.play_id ORDER BY CASE color_at_play WHEN 'R' THEN 0 WHEN 'B' THEN 1 WHEN 'Y' THEN 2 ELSE 3 END));
 END;
