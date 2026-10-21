@@ -11,6 +11,7 @@ DB製品に依存しない概念設計。テーブル名・型は提案。物理
 | Play | playId、songRefId、score、isFullCombo、isTaipen、receivedAt、gameVersion、hostPlayerId、playerCount、teamKey、excludedAt | 新規の全受理記録と移行で選んだ最高記録を保存。playIdは一意。APIのsongId（gameSongId）は受付時にSong.idへ変換してsongRefIdに保存する。FC・モード・バージョン・hostPlayerIdは移行用にnull許容。hostPlayerIdがnullの記録を移行分とみなす（APIはhostPlayerIdを必須とするため）。teamKeyは必須の文字列列で、参加者IDから生成して保存する（非一意） |
 | PlayParticipant | playId、playerId、nameAtPlay、colorAtPlay | プレイ当時の名前・色を保持。colorAtPlayは必須。playId+playerIdとplayId+colorAtPlayをそれぞれ一意にする。表示順は色のR→B→Y→Gで決め、受信順は保存しない |
 | SongBest | songRefId、playerCount、score、isFullCombo、hasFullCombo、tiedOthers、participants、updatedAt | 曲・人数ごとのランキング1位の集計結果（曲一覧・閲覧APIが読む）。songRefId+playerCountを主キーとし、記録のない組み合わせの行は持たない。hasFullComboは1位に限らずFCの記録があるか、participantsは1位の組の記録時点の名前と色。記録の受付時に保存と同じトランザクションで作り直す。記録を直接変えたとき（除外、旧IDの紐付けの反映、旧記録の取り込み直し）も作り直す |
+| TeamBest | songRefId、playerCount、teamKey、playId、score、isFullCombo、receivedAt、hostPlayerId、bestFcScore | 全期間・FC限定なしの曲別ランキングが読む1チーム1行の集計。songRefId+playerCount+teamKeyが主キー。代表記録とFC最高点は別に持ち、時点名・色は代表playIdの参加者表から取得。playへのINSERTは改善時だけ更新、関連列のUPDATE・DELETEは対象チームを再集計するDBトリガーで追従する。期間指定・FC限定はplayを直接集計する |
 | LegacyIdentityMapping | 移行用playerId、対応する新playerId、確認状態 | 確認できた旧IDと新IDの対応だけを管理する。名前一致だけの自動紐付けはしない。対応を記録に反映するとチームのまとまりが変わるため、反映後にSongBestを作り直す |
 
 ## 曲マスター
@@ -29,7 +30,7 @@ DB製品に依存しない概念設計。テーブル名・型は提案。物理
 参加者IDは保存するplayerIdと同じ正規化を適用（UUIDは小文字化）し、重複がないことを検証してから文字列の辞書順にソートする。
 ソートしたID配列を空白なしのJSON配列文字列にシリアライズしたものをteamKeyとする。単純な区切り文字結合やハッシュ化は行わない。
 同じ参加者なら順序・名前・色・ホストの違いによらず同じキーになる。曲・人数・スコア・FC・TAIPEN・バージョンはキーに含めない。
-同じチームの複数プレイを保存するため、teamKeyおよびsongRefId+playerCount+teamKeyには一意制約を付けない。
+同じチームの複数プレイを保存するため、PlayのteamKeyおよびsongRefId+playerCount+teamKeyには一意制約を付けない。TeamBestは1チーム1行なのでsongRefId+playerCount+teamKeyを主キーにする。
 
 曲ID・人数・teamKeyでまとめ、score降順、フル達成優先、receivedAt昇順、playId辞書順で代表を選ぶ。
 FCのtrueを優先し、移行分のfalseとnullは同じ優先度にする案。nullをfalseに書き換えない。
@@ -40,7 +41,7 @@ receivedAtで先着を判定する。実際の達成順とは限らない。
 移行分が同点の場合に新規記録と比較される順序はインポート時刻に依存する。表示は「受付日時」または「移行受付日時」とし、達成日時とは表示しない。
 
 ゲームバージョンは分類キーにしない。譜面修正後も既存のランキングに残す。
-除外記録は代表選択から外す。保存方式・索引は、件数に応じて決める。最初から別の集計DBを必須にしない。
+除外記録は代表選択から外す。曲別ランキングは同じD1内のTeamBestを使い、全履歴からの代表選択とFC最高点の集計を表示のたびに行わない。0003のバックフィルとplayのトリガーで整合性を保つ。最高点、FC優先、受付日時、playIdの順序は従来と同じ。通常のINSERTでは改善しなければ集計行を書かない。SQLによる訂正・除外・旧ID紐付け・削除でも自動更新する。期間内・FC限定の代表選択には全期間の集計行を使わない。
 曲一覧の1位は表示のたびに集計するとD1の読み取りが1ページ約1万行になったため、SongBestに集計結果を持つ。除外や旧IDの紐付けを反映する処理を作るときは、該当する曲・人数（または全体）のSongBestを作り直すこと（`src/lib/song-best-sql.ts`）。
 
 ## 保存・再送の整合性
@@ -106,3 +107,4 @@ IDの衝突対策だけでは、同じセーブのコピーによる同一IDの�
 
 設計書・コード・テストには架空データだけを使う。プレイヤー名・個別成績・移行ファイル・名前とIDの対応表をGit、PR、Issue、AIの作業メモリ・作業メモ、会話出力、ログ、共有成果物へ転記・保存しない。設計確認時の実データは処理中のメモリ内だけで扱い、終了時に破棄する。
 実際の移行で必要な成績・ID対応・再取り込み管理情報は、移行先DB等の用途に必要な管理領域に限定する。移行元データを公開リポジトリへバックアップしない。
+

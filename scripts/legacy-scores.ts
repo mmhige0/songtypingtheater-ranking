@@ -186,7 +186,8 @@ export const chunk = <T>(items: readonly T[], size: number) =>
 // 書き込み行数は索引の更新も数えるため、1行あたりの書き込み行数は本番のD1 insightsでの実測値（表＋索引の数）。
 // playは実測の4に、その後に足した受付日時の索引（0001）の1を加えた
 const WRITES_PER_PLAYER = 3
-const WRITES_PER_PLAY = 5
+// team_bestの初回行（本体＋主キー索引）を1プレイにつき最大2行分見込む。
+const WRITES_PER_PLAY = 5 + 2
 const WRITES_PER_PARTICIPANT = 4
 // 各ファイルの最後でsong_best（曲・人数ごとの1位）を全曲分作り直す。全行の削除と挿入で、表＋主キーの索引の分
 const WRITES_PER_SONG_BEST = 4
@@ -312,3 +313,4 @@ export const summarize = (plays: readonly LegacyPlay[], playerIds: readonly stri
     bySongAndPlayers: [...bySongAndPlayers.values()],
   }
 }
+

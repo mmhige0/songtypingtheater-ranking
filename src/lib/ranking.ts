@@ -37,7 +37,7 @@ export type RankingFilter = {
 // best_fc_scoreは絞り込み後のチームの記録のうちFC記録の最高得点（受付日時の範囲もかかる）
 // 人数が固定なら等価条件を使い、既存インデックスを利用しやすくする。
 // ?3は範囲指定で使うため、人数固定でもバインド位置は維持する。
-const matchedCte = ({ min, max }: PlayerCountRange) => `
+const historyMatchedCte = ({ min, max }: PlayerCountRange) => `
 WITH representative AS (
   SELECT play_id, score, is_full_combo, received_at, host_player_id,
     ROW_NUMBER() OVER (
@@ -62,6 +62,28 @@ matched AS (
     WHERE pp.play_id = ranked.play_id AND instr(lower(pp.name_at_play), lower(?5)) > 0
   )
 )`
+
+// 全期間・FC限定なしの曲別ランキングは履歴ではなく1チーム1行の集計を読む。
+// 期間指定では期間内の最高記録、FC限定ではFC記録の時点名が必要なため従来の集計を使う。
+const matchedCte = (range: PlayerCountRange, filter: RankingFilter) => {
+  if (filter.received || filter.fullComboOnly) return historyMatchedCte(range)
+  return `
+WITH ranked AS (
+  SELECT play_id, score, is_full_combo, received_at, host_player_id, best_fc_score,
+    RANK() OVER (ORDER BY score DESC) AS rank
+  FROM team_best
+  WHERE song_ref_id = ?1 AND ${range.min === range.max ? 'player_count = ?2' : 'player_count BETWEEN ?2 AND ?3'}
+),
+matched AS (
+  SELECT * FROM ranked
+  WHERE ?5 IS NULL OR EXISTS (
+    SELECT 1 FROM play_participant AS pp
+    WHERE pp.play_id = ranked.play_id AND instr(lower(pp.name_at_play), lower(?5)) > 0
+  )
+  -- 履歴集計とバインド位置をそろえる（全期間・FC限定なしなので常に真）
+  AND ?4 = 0 AND ?6 IS NULL AND ?7 IS NULL
+)`
+}
 
 type EntryRow = {
   play_id: string
@@ -114,13 +136,29 @@ export const fetchGroupRankings = async (
       filter.received?.from ?? null,
       filter.received?.to ?? null,
     ] as const
-  const results = await db.batch<unknown>(
-    ranges.map((range) =>
-      db
-        .prepare(`${matchedCte(range)} SELECT * FROM matched ORDER BY score DESC, received_at, play_id LIMIT ?8 OFFSET ?9`)
-        .bind(...params(range), limit + 1, offset),
-    ),
-  )
+  const load = (historyOnly = false) =>
+    db.batch<unknown>(
+      ranges.map((range) => {
+        const cte = historyOnly ? historyMatchedCte(range) : matchedCte(range, filter)
+        return db
+          .prepare(`${cte} SELECT * FROM matched ORDER BY score DESC, received_at, play_id LIMIT ?8 OFFSET ?9`)
+          .bind(...params(range), limit + 1, offset)
+      }),
+    )
+
+  // PRプレビューは本番D1を共用する。未移行の間だけ履歴に戻し、表示を継続する。
+  // 空の集計表やその他のDBエラーはこの条件に含めず、不整合・障害を隠さない。
+  let results: D1Result<unknown>[]
+  try {
+    results = await load()
+  } catch (error) {
+    let missing = false
+    for (let current = error; current instanceof Error; current = current.cause) {
+      if (/no such table: (?:main\.)?team_best\b/.test(current.message)) missing = true
+    }
+    if (!missing || filter.received || filter.fullComboOnly) throw error
+    results = await load(true)
+  }
 
   // 1件先読みで次ページの有無を判定し、総件数の再集計を避ける。
   // 先読み分の参加者は取得せず、参加者クエリのパラメーター上限を守る。
@@ -221,3 +259,4 @@ export const fetchBestScores = async (db: D1Database, songRefIds: number[]): Pro
   }
   return bestBySong
 }
+

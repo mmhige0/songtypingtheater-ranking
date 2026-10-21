@@ -9,8 +9,9 @@ export const resetDb = () => {
   clearPopularSongsCache()
   clearDailyCache()
   return env.DB.batch(
-    ['song_best', 'play_participant', 'play', 'legacy_identity_mapping', 'player', 'song'].map((table) =>
+    ['song_best', 'team_best', 'play_participant', 'play', 'legacy_identity_mapping', 'player', 'song'].map((table) =>
       env.DB.prepare(`DELETE FROM ${table}`),
     ),
   )
 }
+

@@ -18,7 +18,8 @@
     "register-songs": "tsx scripts/register-songs.ts",
     "migrate-legacy-scores": "tsx scripts/migrate-legacy-scores.ts",
     "rebuild-song-best": "tsx scripts/rebuild-song-best.ts",
-    "link-legacy-players": "tsx scripts/link-legacy-players.ts"
+    "link-legacy-players": "tsx scripts/link-legacy-players.ts",
+    "rebuild-team-best": "tsx scripts/rebuild-team-best.ts"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.4",
