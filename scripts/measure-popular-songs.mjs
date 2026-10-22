@@ -1,3 +1,6 @@
+import process from 'node:process'
+import console from 'node:console'
+import { URL } from 'node:url'
 import { readFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 
@@ -20,7 +23,11 @@ if (sql.includes('${') || !sql.startsWith('WITH counted AS')) throw new Error('U
 const child = spawnSync(process.execPath, [
   'node_modules/wrangler/bin/wrangler.js', 'd1', 'execute', 'DB', '--remote', '--json', '--command', sql,
 ], { encoding: 'utf8' })
-if (child.error || child.status !== 0) throw new Error('D1 measurement failed; check Cloudflare authentication and permissions')
+if (child.error || child.status !== 0) {
+  console.error(child.stderr)
+  console.error(child.stdout)
+  throw new Error('D1 measurement failed')
+}
 const [result] = JSON.parse(child.stdout)
 if (!result?.success || typeof result.meta?.rows_read !== 'number') throw new Error('Missing D1 rows_read')
 console.log(JSON.stringify({
