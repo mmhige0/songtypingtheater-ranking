@@ -314,9 +314,9 @@ describe('song list page', () => {
       const start = text.lastIndexOf('<td', text.indexOf(`href="/songs/001?players=${count}"`))
       return text.slice(start, text.indexOf('</td>', start))
     }
-    expect(cell(1)).toMatch(/^<td class="best full-combo">/)
+    expect(cell(1)).toMatch(/^<td class="best full-combo" data-count="1">/)
     expect(cell(1)).not.toContain('aria-label="フルコンボ"')
-    expect(cell(2)).toMatch(/^<td class="best">/)
+    expect(cell(2)).toMatch(/^<td class="best" data-count="2">/)
   })
 
   it('shows a message when nothing matches', async () => {

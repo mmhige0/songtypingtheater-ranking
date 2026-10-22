@@ -173,7 +173,8 @@ form.addEventListener('submit',function(e){e.preventDefault();clearTimeout(timer
 document.addEventListener('change',function(e){var t=e.target;if(t.form!==form||t.type==='search')return;
 if(t.type==='radio'){history.replaceState(null,'',formUrl());return}clearTimeout(timer);show(formUrl())});
 document.addEventListener('click',function(e){
-var a=e.target.closest&&e.target.closest('#'+targetId+' .sort-link, #'+targetId+' [data-live-nav] a');
+var a=e.target.closest&&e.target.closest('.sort-link, [data-live-nav] a');
+if(a&&!form.contains(a)&&!results().contains(a))return;
 if(!a||e.button!==0||e.ctrlKey||e.metaKey||e.shiftKey||e.altKey)return;e.preventDefault();
 show(a.href,!!a.closest('[data-live-nav=bottom]'))})})()`
 
@@ -234,6 +235,7 @@ export const PageNumberPagination = ({
       data-live-nav={placement}
     >
       <PageStep label="前へ" href={page > 1 ? href(Math.min(page - 1, lastPage)) : null} />
+      <span class="page-position num small muted">{page} / {lastPage}</span>
       <ul class="page-ranges">
         {Array.from({ length: lastPage }, (_, i) => i + 1).map((p) => (
           <li>
