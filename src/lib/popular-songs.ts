@@ -5,8 +5,9 @@ import { addDays, jstDayRange } from './daily'
 
 export const POPULAR_SONG_DAYS = 7
 export const POPULAR_SONG_LIMIT = 5
-// 期間は日付が変わるまで同じなので、isolateのメモリに保持する。除外の反映は最大TTLの間遅れる
-export const POPULAR_SONGS_CACHE_TTL_MS = 60 * 60 * 1000
+// 期間は日付が変わるまで同じなので、isolateのメモリに保持する。日付変更時はTTL内でも再集計する。
+// 除外・曲情報の修正は翌日の再集計まで遅れる。isolateの再作成・複数起動では再取得される
+export const POPULAR_SONGS_CACHE_TTL_MS = 24 * 60 * 60 * 1000
 
 export type PopularSong = { rank: number; gameSongId: string; title: string; artist: string | null }
 export type PopularSongs = {

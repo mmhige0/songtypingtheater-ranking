@@ -158,11 +158,15 @@ describe('top page', () => {
     expect(popular.match(/>1位</g)).toHaveLength(5)
   })
 
-  it('caches the counts until the date changes or an hour passes', async () => {
+  it('caches the counts until the date changes or 24 hours pass', async () => {
     const song2 = await insertSong('002', '別の曲')
     await insertPlay({ playId: 'p0', songRefId: song, score: 1, participants: solo(0, 'P0'), receivedAt: FIRST })
     expect((await fetchPopularSongs(env.DB, '2026-10-14')).songs).toHaveLength(1)
     await insertPlay({ playId: 'p1', songRefId: song2, score: 1, participants: solo(1, 'P1'), receivedAt: FIRST })
+    expect((await fetchPopularSongs(env.DB, '2026-10-14')).songs).toHaveLength(1)
+
+    expect(POPULAR_SONGS_CACHE_TTL_MS).toBe(24 * 60 * 60 * 1000)
+    vi.setSystemTime(new Date(Date.parse(NOW_UTC) + 60 * 60 * 1000 + 1))
     expect((await fetchPopularSongs(env.DB, '2026-10-14')).songs).toHaveLength(1)
 
     vi.setSystemTime(new Date(Date.parse(NOW_UTC) + POPULAR_SONGS_CACHE_TTL_MS + 1))
