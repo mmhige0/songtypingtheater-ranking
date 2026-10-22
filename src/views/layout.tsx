@@ -417,6 +417,77 @@ table.ranking { width: 100%; border-collapse: collapse; table-layout: fixed; }
   .daily-panel .fc-score { font-size: .8125rem; }
   .daily-panel .participants { font-size: .9375rem; }
 }
+/* スマホの曲一覧。同じ表・取得済みの記録を縦に組み替える。 */
+.mobile-song-label, .song-count-control, .page-position { display: none; }
+.song-filter-options { flex: 1 1 260px; max-width: 400px; min-width: 0; }
+.song-filter-body { display: block; }
+.song-filter-options .level-filter { width: 100%; }
+.song-filter-options > summary, .mobile-sort .sort-link { display: none; }
+@media (max-width: 767px) {
+  .header-inner { gap: 8px; }
+  .brand { gap: 10px; }
+  .brand-icon { width: 36px; height: 36px; border-radius: 12px; }
+  .brand-title { font-size: 1.125rem; }
+  .theme-toggle { width: 44px; height: 44px; }
+  .song-browser .filters { display: block; margin: 0 0 16px; padding: 12px; }
+  .song-browser .search-field { max-width: none; width: 100%; }
+  .song-browser input[type=search] { height: 44px; font-size: 16px; }
+  .song-browser .search-clear { width: 36px; height: 36px; }
+  .song-filter-options { display: block; max-width: none; margin-top: 8px; }
+  .song-filter-options > summary { display: list-item; padding: 10px 4px; font-size: .875rem; cursor: pointer; }
+  .song-filter-body { display: flex; flex-direction: column; gap: 16px; padding-top: 8px; }
+  .song-browser .level-filter { flex: none; width: 100%; max-width: none; min-height: 44px; }
+  .song-browser .level-slider { max-width: none; }
+  #sort-state.mobile-sort { display: flex; gap: 8px; flex-wrap: wrap; }
+  .mobile-sort .sort-link { display: inline-flex; min-height: 44px; }
+  .mobile-sort [aria-current=true] { border-color: hsl(var(--primary)); }
+  .song-count-control { display: block; min-width: 0; margin: 0 0 16px; padding: 0; border: 0; }
+  .song-count-control legend { margin-bottom: 8px; font-size: .8125rem; color: hsl(var(--muted-foreground)); }
+  .song-count-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+  .song-count-option { position: relative; min-width: 0; cursor: pointer; }
+  .song-count-option input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+  .song-count-option span { display: flex; align-items: center; justify-content: center; min-height: 44px;
+    border: 1px solid hsl(var(--border)); border-radius: 999px; background: hsl(var(--card)); font-weight: 600; }
+  .song-count-option input:checked + span { background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); border-color: hsl(var(--primary)); }
+  .song-count-option input:focus-visible + span { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
+  .song-browser .page-number-pagination { grid-template-columns: 1fr auto 1fr; gap: 8px; }
+  .song-browser .page-number-pagination > :first-child { justify-self: stretch; }
+  .song-browser .page-number-pagination > :last-child { justify-self: stretch; }
+  .song-browser .page-ranges { display: none; }
+  .song-browser .page-position { display: block; text-align: center; }
+  .song-browser .pagination .button { height: 44px; padding: 0 12px; }
+  .song-browser .table-wrap { overflow: hidden; }
+  table.songs { display: block; min-width: 0; width: 100%; }
+  .songs colgroup { display: none; }
+  .songs thead { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); }
+  .songs tbody { display: block; }
+  .songs tbody tr { display: grid; grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "no level" "title title" "best best"; gap: 6px 12px; padding: 12px; }
+  .songs tbody tr + tr { border-top: 1px solid hsl(var(--border)); }
+  .songs td { padding: 0; border: 0; min-width: 0; }
+  .songs .no { grid-area: no; text-align: left; font-size: .8125rem; }
+  .songs .level { grid-area: level; font-size: .8125rem; }
+  .songs .song-cell:not(.no):not(.level) { grid-area: title; }
+  .mobile-song-label { display: inline; }
+  .songs .song-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+    white-space: pre-wrap; overflow-wrap: anywhere; font-size: 1rem; line-height: 1.5; }
+  .songs .song-artist { white-space: nowrap; }
+  .songs .best { display: none; grid-area: best; border: 0; border-radius: 8px; padding: 10px 12px; margin-top: 4px; }
+  .song-browser:has([name=song-count][value="1"]:checked) .songs .best[data-count="1"] { display: block; }
+  .song-browser:has([name=song-count][value="2"]:checked) .songs .best[data-count="2"] { display: block; }
+  .song-browser:has([name=song-count][value="3"]:checked) .songs .best[data-count="3"] { display: block; }
+  .song-browser:has([name=song-count][value="4"]:checked) .songs .best[data-count="4"] { display: block; }
+  .songs .best-link { display: block; text-decoration: none; }
+  .songs .best-score { font-size: 1.125rem; }
+  .songs .best-empty { display: block; min-height: 24px; text-align: right; }
+  .songs .best-link .participants { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px 12px; margin-top: 6px; white-space: normal; }
+  .songs .participants li { display: block; min-width: 0; }
+  .songs .participants li:not(:last-child)::after { content: none; }
+  .songs .participants[data-count="1"] li { grid-column: 1 / -1; }
+  .songs .participant-name { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
+
 `
 
 // 保存したテーマ（light・dark）を描画前に反映する。保存がなければ端末の設定に従う。

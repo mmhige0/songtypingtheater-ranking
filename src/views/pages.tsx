@@ -3,6 +3,7 @@ import type { PopularSongs } from '../lib/popular-songs'
 import { DAILY_GROUPS, dailyDates, type DailyRanking } from '../lib/daily'
 import type { BestScore, BestScores, RankingPage } from '../lib/ranking'
 import type { Child } from 'hono/jsx'
+import { SongListControls, SongListScript } from './mobile-song-list'
 import { SongNavigation } from './song-navigation'
 import type { AdjacentSongs, SongSummary } from '../lib/song-query'
 import {
@@ -307,7 +308,7 @@ const SortHeader = ({
 // FCのマークは1位がFCのとき、背景色はその人数の記録に1件でもFCがあるときに付ける。
 // セル全体（記録なしも含む）がその人数のランキングへのリンク
 const BestCell = ({ song, count, best }: { song: SongSummary; count: PlayerCount; best: BestScore | null }) => (
-  <td class={best?.hasFullCombo === true ? 'best full-combo' : 'best'}>
+  <td class={best?.hasFullCombo === true ? 'best full-combo' : 'best'} data-count={count}>
     {best === null ? (
       <a
         class="cell-link best-empty muted"
@@ -330,21 +331,34 @@ const BestCell = ({ song, count, best }: { song: SongSummary; count: PlayerCount
 
 export const SongListPage = ({ songs, q, levelRange, sort, dir, page, limit, total }: SongListProps) => (
   <Layout title="">
+    <div class="song-browser">
     <form id="song-search" class="box filters" method="get" action={SONG_LIST_PATH} role="search" data-live="song-results">
-      <span id="sort-state" data-sync>
-        {sort !== 'id' && <input type="hidden" name="sort" value={sort} />}
-        {dir !== 'desc' && <input type="hidden" name="dir" value={dir} />}
-      </span>
       <SearchField
         name="q"
         value={q}
         placeholder="曲番・曲名・アーティスト名で検索"
         clearHref={songListPath({ levelRange, sort, dir })}
       />
-      <LevelFilter levelRange={levelRange} />
+      <details class="song-filter-options" open data-filtered={levelRange !== null ? "true" : "false"}>
+        <summary>絞り込み・並べ替え</summary>
+        <div class="song-filter-body">
+          <LevelFilter levelRange={levelRange} />
+          <span id="sort-state" class="mobile-sort" data-sync>
+            {sort !== 'id' && <input type="hidden" name="sort" value={sort} />}
+            {dir !== 'desc' && <input type="hidden" name="dir" value={dir} />}
+            {(['id', 'level'] as const).map((value) => (
+              <a class="sort-link chip" href={songListPath({ q, levelRange, sort: value, dir: sort === value && dir === 'desc' ? 'asc' : 'desc' })}
+                aria-current={sort === value ? 'true' : undefined}>
+                {value === 'id' ? '曲番号' : '難易度'}{sort === value ? (dir === 'asc' ? ' ↑' : ' ↓') : ''}
+              </a>
+            ))}
+          </span>
+        </div>
+      </details>
       <NoScriptSubmit />
     </form>
 
+    <SongListControls />
     <div id="song-results">
       {songs.length === 0 ? (
         <p class="empty-box">{q !== null || levelRange !== null ? '条件に一致する曲がありません' : '曲はまだ登録されていません'}</p>
@@ -384,7 +398,7 @@ export const SongListPage = ({ songs, q, levelRange, sort, dir, page, limit, tot
                     {/* No.・曲名・Lv.のどこを押しても曲別ランキングへ。読み上げ・Tab移動は曲名のリンクだけにする */}
                     <td class="song-cell no num">
                       <a class="cell-link" href={songPath(song.gameSongId)} tabindex={-1} aria-hidden="true">
-                        {song.gameSongId}
+                        <span class="mobile-song-label">No.</span>{song.gameSongId}
                       </a>
                     </td>
                     <td class="song-cell">
@@ -397,7 +411,7 @@ export const SongListPage = ({ songs, q, levelRange, sort, dir, page, limit, tot
                     </td>
                     <td class="song-cell level">
                       <a class="cell-link" href={songPath(song.gameSongId)} tabindex={-1} aria-hidden="true">
-                        {song.level ?? '—'}
+                        <span class="mobile-song-label">Lv.</span>{song.level ?? '—'}
                       </a>
                     </td>
                     {PLAYER_COUNTS.map((count) => (
@@ -419,6 +433,8 @@ export const SongListPage = ({ songs, q, levelRange, sort, dir, page, limit, tot
       />
     </div>
     <LiveSearchScript />
+    <SongListScript />
+    </div>
   </Layout>
 )
 
