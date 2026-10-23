@@ -120,6 +120,26 @@ export const songBests = sqliteTable(
   (t) => [primaryKey({ columns: [t.songRefId, t.playerCount] })],
 )
 
+// 曲・人数・チームごとの最高記録とFC最高点。playのトリガーで同一トランザクション内に更新する。
+// 参加者の名前・色も保持し、全員の保存後に参加者表のトリガーで反映する。期間指定・FC限定は履歴を使う。
+export const teamBests = sqliteTable(
+  'team_best',
+  {
+    songRefId: integer('song_ref_id').notNull().references(() => songs.id),
+    playerCount: integer('player_count').notNull(),
+    teamKey: text('team_key').notNull(),
+    // playへの外部キーは付けない。代表削除時はAFTER DELETEトリガーで次点に置き換える。
+    playId: text('play_id').notNull(),
+    score: integer('score').notNull(),
+    isFullCombo: integer('is_full_combo', { mode: 'boolean' }),
+    receivedAt: text('received_at').notNull(),
+    hostPlayerId: text('host_player_id'),
+    bestFcScore: integer('best_fc_score'),
+    participants: text('participants').notNull().default('[]'),
+  },
+  (t) => [primaryKey({ columns: [t.songRefId, t.playerCount, t.teamKey] })],
+)
+
 export const legacyIdentityMappings = sqliteTable(
   'legacy_identity_mapping',
   {
