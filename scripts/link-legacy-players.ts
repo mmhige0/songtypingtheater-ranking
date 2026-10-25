@@ -1,6 +1,6 @@
 // 確認済みの旧ID（legacy-）と新IDの対応をCSV（legacyPlayerId,newPlayerId）から読み、記録に反映するSQLを書き出す。
 // 使い方: npm run link-legacy-players -- --out imports/legacy-links.sql imports/legacy-links.csv
-// DBへは書き込まない。`npx wrangler d1 execute DB --remote --file <SQL>`で適用する（READMEの「旧IDと新IDの紐付け」）。
+// DBへは書き込まない。`npx wrangler d1 execute DB --remote --file <SQL>`で適用する（docs/operations.mdの「旧IDと新IDの紐付け」）。
 // 名前の一致だけで作った対応は入れない（本人に確認できたものだけ）。画面には件数だけを出す
 import { readFileSync, writeFileSync } from 'node:fs'
 import { parseArgs } from 'node:util'
