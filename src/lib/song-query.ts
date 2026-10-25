@@ -59,7 +59,11 @@ const loadApprovedSongs = async (db: D1Database): Promise<CachedSong[]> => {
 // SQLiteのlower()と同じく英字A〜Zだけを小文字にする（全角英字等は区別したまま）
 const asciiLower = (s: string) => s.replace(/[A-Z]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 32))
 
-// 曲番号・曲名・アーティストの部分一致（英字の大文字・小文字は区別しない）。
+// 英字の大小と、ひらがな・カタカナをそろえて比較する。濁点・半濁点の結合文字も統一する
+const normalizeSearchText = (s: string) =>
+  asciiLower(s.normalize('NFC')).replace(/[\u30a1-\u30f6]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0x60))
+
+// 曲番号・曲名・アーティストの部分一致（英字の大小、ひらがな・カタカナは区別しない）。
 // レベルの範囲はLv.5〜7なら「5-」〜「7+」で、レベル未設定の曲は含めない
 const matches = (song: CachedSong, q: string | null, level: string | null, levelRange: LevelRange | null) => {
   if (level !== null && song.level !== level) return false
@@ -72,9 +76,9 @@ const matches = (song: CachedSong, q: string | null, level: string | null, level
     return false
   }
   if (q === null) return true
-  const lq = asciiLower(q)
+  const lq = normalizeSearchText(q)
   return (
-    song.gameSongId.includes(q) || asciiLower(song.title).includes(lq) || asciiLower(song.artist ?? '').includes(lq)
+    song.gameSongId.includes(q) || normalizeSearchText(song.title).includes(lq) || normalizeSearchText(song.artist ?? '').includes(lq)
   )
 }
 
