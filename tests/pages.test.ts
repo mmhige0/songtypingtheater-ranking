@@ -37,9 +37,9 @@ beforeEach(async () => {
 })
 
 describe('top page', () => {
-  // 日本時間 2026-10-14 12:00。人気曲の期間は10/7 0:00〜10/14 0:00（日本時間）
+  // 日本時間 2026-10-14 12:00。人気曲の期間は10/11 0:00〜10/14 0:00（日本時間）
   const NOW_UTC = '2026-10-14T03:00:00.000Z'
-  const FIRST = '2026-10-06T15:00:00.000Z'
+  const FIRST = '2026-10-10T15:00:00.000Z'
   const solo = (i: number, name: string) => [{ id: IDS[i]!, name, color: 'R' as const }]
   const popularSection = (text: string) => {
     const start = text.indexOf('id="popular-title"')
@@ -111,7 +111,7 @@ describe('top page', () => {
     expect(popular).not.toContain('class="popular-row"')
   })
 
-  it('counts plays by song over the 7 days up to yesterday', async () => {
+  it('counts plays by song over the 3 days up to yesterday', async () => {
     const song2 = await insertSong('002', '別の曲')
     const at = (ms: number) => new Date(Date.parse(FIRST) + ms).toISOString()
     for (let i = 0; i < 3; i++) {
@@ -138,7 +138,7 @@ describe('top page', () => {
     expect(text).not.toContain('よく遊んだ人')
     const popular = popularSection(text)
     expect(popular).toContain('>人気曲</h2>')
-    expect(popular).toContain('10/7〜10/13')
+    expect(popular).toContain('10/11〜10/13')
     expect(popular.indexOf('架空の曲名')).toBeLessThan(popular.indexOf('別の曲'))
     expect(popular).toContain(`href="${RANKING}/songs/001"`)
     // 回数は出さず、曲番・曲名・アーティスト名の順に出す
@@ -174,7 +174,7 @@ describe('top page', () => {
 
     await insertPlay({ playId: 'p2', songRefId: song, score: 1, participants: solo(2, 'P2'), receivedAt: '2026-10-13T15:00:00.000Z' })
     const nextDay = await fetchPopularSongs(env.DB, '2026-10-15')
-    expect(nextDay.firstDate).toBe('2026-10-08')
+    expect(nextDay.firstDate).toBe('2026-10-12')
     expect(nextDay.songs).toHaveLength(1)
   })
 
