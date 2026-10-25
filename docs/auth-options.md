@@ -26,7 +26,7 @@ registrationSecret、RegistrationRecovery、復旧用暗号鍵・鍵更新・7�
 
 ## 登録API
 
-HTTPS、UTF-8 JSON。共通の本文サイズ・JSON検証・送信制限・エラー形式は[API連携案](api-contract.md)に従う。
+HTTPS、UTF-8 JSON。共通の本文サイズ・JSON検証・送信制限・エラー形式は[API仕様](api-contract.md)に従う。
 既存Bearer tokenは初回登録の前提としない。本文の秘密で同じ登録かを照合する。
 
 本文形式（値は形式説明用のプレースホルダー）:
@@ -55,7 +55,7 @@ tokenHashは正規形式のtoken文字列のUTF-8バイト列に対するSHA-256
 
 409・401・400は自動再送しない。異なるtokenの場合は既存IDの失効状態にかかわらず409とする。
 成功応答はplayerIdとstatus（新規はcreated、再送はalready_registered）を返す。tokenやハッシュは返さない。Cache-Control: no-storeを指定する。
-プロキシ由来の本文なしエラーや通信失敗も扱う。再送間隔はAPI連携案の再送方針に従う。
+プロキシ由来の本文なしエラーや通信失敗も扱う。再送間隔はAPI仕様の再送方針に従う。
 
 ## 保存・同時登録・失効
 

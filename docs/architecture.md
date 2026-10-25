@@ -1,6 +1,6 @@
 # システム構成
 
-更新日: 2026-10-11（日本時間）
+更新日: 2026-10-25（日本時間）
 
 Cloudflareの無料プランで構築する。他構成との比較は行わず、この構成で進める。
 無料枠の数値・機能の提供状況は変わり得る。2026-10-11時点の公式ドキュメントの確認結果は[無料枠・制約の確認結果](#無料枠制約の確認結果)を参照。
@@ -14,7 +14,7 @@ Cloudflareの無料プランで構築する。他構成との比較は行わず�
 | DB | Cloudflare D1（SQLite系） |
 | ORM・マイグレーション | Drizzle ORM。drizzle-kitで生成したSQLを`wrangler d1 migrations`で適用 |
 | 送信回数制限 | Workers Rate Limiting（バインディング）。使えない場合はD1の固定窓カウンター |
-| バックアップ | D1 Time Travel（7日）＋管理者の手動`wrangler d1 export` |
+| バックアップ | D1 Time Travel＋別管理の自動バックアップ。手動exportは補助手段（下記参照） |
 | 言語・テスト | TypeScript（strict）、Vitest＋`@cloudflare/vitest-plugin`（旧`@cloudflare/vitest-pool-workers`） |
 | 設定・型 | `wrangler.jsonc`。Workerの型は`wrangler types`で生成（`worker-configuration.d.ts`はコミットせず、型チェック時に生成） |
 | ドメイン | `kayomodoki.com`（トップ・ランキング画面）と`ranking.kayomodoki.com`（既存APIの送信先。同じWorkerのカスタムドメイン）。`TOP_ORIGIN`が画面の公開先、`RANKING_ORIGIN`が旧ランキング・APIのホスト。旧画面はメインドメインへ301転送する |
@@ -23,7 +23,7 @@ LyricDataCreator（Vercel）とは運用基盤が別になる。連携は公開�
 
 ## 環境・秘密情報
 
-- 本番とローカル開発（`wrangler dev`、ローカルD1）の2環境から始める。
+- 本番、ローカル開発（`wrangler dev`、ローカルD1）、PRごとの閲覧専用プレビューを使う。プレビューは本番D1を共用する。
 - `ADMIN_API_KEY`は`wrangler secret`で設定する。`wrangler.jsonc`・リポジトリ・ログに含めない。ローカルでは`.dev.vars`（コミットしない）に設定する。
 - 送信元IPは`CF-Connecting-IP`だけを使う。`X-Forwarded-For`等の任意の転送ヘッダーは信頼しない。
 
@@ -33,10 +33,10 @@ D1はアプリから対話的にBEGIN〜COMMITを発行できず、`batch()`に�
 
 | 処理 | 実装方針 |
 |---|---|
-| 成績登録 | 検証・曲の変換（gameSongId→Song.id）・参加者の登録確認を先に行い、Playと全PlayParticipantの挿入を1回の`batch()`で実行する。playIdの一意制約違反なら既存の記録のreceivedAtを読み直して200 already_registered（本文は比較しない） |
+| 成績登録 | 検証・曲の変換（gameSongId→Song.id）・参加者の登録確認を先に行い、Playと全PlayParticipantの挿入、その曲・人数のSongBest再集計を1回の`batch()`で実行する。playIdの一意制約違反なら既存の記録のreceivedAtを読み直して200 already_registered（本文は比較しない） |
 | 初回登録 | tokenHash付きのPlayer行の挿入1文で実行する。一意制約違反なら保存済みのID・tokenHash・失効状態を読み直し、仕様どおり200・409・401を返す |
 | 曲登録 | gameSongIdで既存行を読み、なければINSERT（created）、あれば内容を比較して同じならunchanged、異なればUPDATE（updated）。created・updated・unchangedを区別するため1文のupsertにはしない。同時登録でINSERTが一意制約違反になったら既存行を読み直して比較・更新に切り替える |
-| 移行のID対応修正 | 参加者・teamKey・playerCountの更新を1回の`batch()`で実行する |
+| 旧IDの対応修正 | CLIで生成したSQLを適用し、参加者・teamKey・playerCount・対応表を更新してSongBestを再集計する。ファイル全体の原子性は前提とせず、原因修正後の再実行で収束させる（[運用手順](operations.md#旧idと新idの紐付け)） |
 
 `batch()`の前に読んだ値が、実行時までに他のリクエストで変わる可能性がある処理（例: 検証後の失効）は、一意制約・条件付き更新で守れる範囲を実装時に確認する。
 
@@ -55,7 +55,7 @@ D1_ERROR: UNIQUE constraint failed: play.play_id: SQLITE_CONSTRAINT (extended: S
 
 - 読み取り行数は返した行数ではなく走査した行数で数える。ランキング・参加者検索はインデックスで走査範囲を絞り、全件走査を避ける。
 - 曲一覧（画面と`GET /api/v1/songs`）は閲覧・ライブ検索のたびに全件走査となり、読み取り行数の約8割を占めていた（2026-10-11の実測）。承認済みの全曲（約500行）をisolateのメモリに5分保持し、部分一致検索・並べ替え・ページ分けはWorker側で行う（`src/lib/song-query.ts`）。リクエスト間で共有するのは読み込み済みのデータだけで、読み込み中のPromiseは共有しない（読み込んだリクエストが切断でキャンセルされると、後続が完了しないPromiseを待ち続けるため）。曲の登録・更新が一覧に反映されるまで最大5分かかる。
-- 書き込み行数は索引の更新も数える（実測で成績1件4行、参加者1人4行、Player1件3行）。旧記録の移行（約1万件で約15万行）は1日の上限（10万行）を超えるため、移行用SQLを1ファイル8万行以下に分けて1日1ファイルずつ適用する（READMEの「旧記録の移行」）。
+- 書き込み行数は索引の更新も数える。成績受付には記録・参加者の挿入に加えてSongBestの再集計が含まれるため、固定の行数を前提にせずD1の実測で確認する。
 - 1クエリのバインドパラメータは100個まで、1回の呼び出しのクエリは50件まで。成績登録（Play1件＋参加者最大4件）は収まる。移行・初期登録の一括挿入は1文100パラメータ以内に分割する。
 
 ## 送信回数制限
@@ -85,23 +85,23 @@ API仕様は重複JSONキーの検出を求める。`JSON.parse`・`c.req.json()
 ## バックアップ
 
 - D1 Time Travelで過去7日以内（無料プラン）の任意時点へ復元できる。復元はDBを上書きするが、返されるブックマークで取り消せる。
-- 7日より前に戻すため、管理者が手動で`wrangler d1 export <DB名> --remote`を実行し、SQLファイルを非公開の場所に保存する。目安は週1回と、移行の前後・大きな変更の前。
+- 大きな変更の前などに手動保存する場合は`wrangler d1 export <DB名> --remote`でSQLを出力し、非公開の場所に保管する。定期バックアップの保存先・世代管理は別管理の運用手順を参照する。
 - D1のエクスポートはwrangler CLIからのみ実行でき、Worker内からは実行できない。このためCron TriggerとR2による自動エクスポートは採用しない（R2有効化時の支払い方法登録も不要になる）。
 - エクスポート中は他のDBリクエストが待たされる。想定規模では短時間の見込みだが、アクセスの少ない時間帯に行う。
 - エクスポートはプレイヤー名・成績を含むため、リポジトリ外に保存する。Git・公開リポジトリのGitHub Actionsの成果物・ログには置かない。
-- 復元手順は実装後に一度実施して確認する。
+- このリポジトリにはバックアップ用ワークフローを含まない。別リポジトリで管理する自動バックアップの保存先・保持世代・復元手順は、その管理先の最新手順を確認する。復元前には送信停止・現DBの保全・スキーマ互換性の確認を行う。
 
 ## CI・デプロイ
 
 - GitHub Actionsでlint・型チェック・テストを実行する。テストには架空データだけを使う。
-- デプロイは当面、手元からの手動`wrangler deploy`とする。自動デプロイは必要になってから検討する。
+- `main`へのpush後にGitHub Actionsで自動デプロイする。PRには本番D1を共用する閲覧専用Workerを作成する（[README](../README.md#デプロイ)、[PRプレビュー](pr-previews.md)）。
 - マイグレーションはデプロイ前に`wrangler d1 migrations apply`で適用する。
 
 ## 費用・制約
 
 - 無料プランだけで運用する。Workers有料プラン（月5ドル）は費用目標（月100円以内）を超えるため使わない。
 - 無料プランのCPU時間（1リクエストあたり約10ms、DB待ちは含まない）に収める。SHA-256はWeb Crypto、JSON検証は16 KiB上限で対応する。ランキング集計はDB側（SQLのwindow関数）で行い、Worker側で全件を処理しない。
-- 想定規模（約500曲、約1万記録、月約1,000記録増、閲覧1日数十人）は無料枠に対して余裕がある見込み。
+- 想定規模だけで無料枠に収まるとは判断しない。Workers・D1の利用量を確認し、集計の走査行数とキャッシュ未命中回数を監視する。
 
 ## 無料枠・制約の確認結果
 
