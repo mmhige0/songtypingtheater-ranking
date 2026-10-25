@@ -1,5 +1,5 @@
 // 確認済みの旧ID（legacy-）と新IDの対応を記録に反映するSQLを作る変換処理（入出力を持たない純粋関数）。
-// 規則はdocs/data-design.mdの「移行（確定）」の手順6・8を参照。テストからも使うためNode.js固有のAPIに依存しない
+// 規則はdocs/data-design.mdの「旧記録とIDの紐付け」を参照。テストからも使うためNode.js固有のAPIに依存しない
 import { SONG_BEST_REBUILD_SQL } from '../src/lib/song-best-sql'
 import { normalizeUuidV4 } from '../src/lib/uuid'
 import { chunk, sqlString } from './legacy-scores'
@@ -34,7 +34,7 @@ export const parseLinks = (rows: readonly string[][]) => {
 // 反映用SQL（1行1文）。どの文で失敗しても、原因を直して同じ手順で作ったSQLを流し直せば同じ結果になる順に並べる。
 // - 既に別の新IDへ対応済みの旧IDがあれば、確認状態に許されない値を書いてCHECK制約違反で止める
 // - 参加者の置き換えは旧記録（hostPlayerIdがnull）だけが対象。新IDが存在しなければ外部キー違反、
-//   同じプレイの複数の旧IDが同じ新IDになる場合は主キー違反で失敗する（手順6の保留）
+//   同じプレイの複数の旧IDが同じ新IDになる場合は主キー違反で失敗する（重複する対応は保留）
 // - teamKey・playerCountは置き換え後の参加者から作り直す。playerIdは英小文字・数字・ハイフンだけなので、
 //   SQLiteのバイト順の並べ替えはtoTeamKeyの並べ替えと同じになる
 // - 対応の登録は置き換えの後に行う。旧IDが存在しなければ外部キー違反で失敗する
