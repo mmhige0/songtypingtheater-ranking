@@ -1,6 +1,6 @@
-# 歌謡タイピング劇場 ランキングサイト
+# Song Typing Theater ランキングサイト
 
-歌謡タイピング劇場の成績を受け付け、曲別・参加人数別のランキングを公開するサイトです。Cloudflare Workers + D1、Hono、Drizzle、TypeScriptで実装しています。
+Song Typing Theaterの成績を受け付け、曲別・参加人数別のランキングを公開するサイトです。Cloudflare Workers + D1、Hono、Drizzle、TypeScriptで実装しています。
 
 - [トップ](https://kayomodoki.com/)
 - [曲一覧・ランキング](https://kayomodoki.com/songs)
@@ -20,7 +20,6 @@
 | 本番へ反映する | [デプロイ](#デプロイ) |
 | PRの確認用URL・制約を知る | [PRプレビュー](docs/pr-previews.md) |
 | ゲームとAPIを連携する | [API仕様](docs/api-contract.md)・[初回登録と再送](docs/auth-options.md) |
-| 公開前の移行作業の経緯を調べる | [公開前の準備・旧記録移行（履歴）](docs/archive/launch-migration.md) |
 
 ## 開発環境の準備
 
@@ -72,7 +71,7 @@ WindowsとWSLで作業環境を切り替える場合は、切り替え先で `np
 | [システム構成](docs/architecture.md) | Workers・D1・送信制限・初期設定 |
 | [決定事項と残課題](docs/decisions.md) | 採用方針と今後の検討事項 |
 
-設計資料には初期検討時の提案や当時の確認結果も含まれます。「提案」はゲーム開発者との合意を意味しません。現在の運用手順はこのREADMEと[運用手順](docs/operations.md)から確認してください。
+設計資料はこのPRの実装と照合しています。ゲーム側の未合意事項と、外部サービスの当時の確認結果は区別して記載しています。「提案」はゲーム開発者との合意を意味しません。現在の運用手順はこのREADMEと[運用手順](docs/operations.md)から確認してください。
 
 ## データ・秘密情報の取り扱い
 
