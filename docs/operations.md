@@ -10,7 +10,6 @@
 - [今日の曲・人気曲の表示設定](#今日の曲人気曲の表示設定)
 - [曲一覧の1位の作り直し](#曲一覧の1位の作り直し)
 - [旧IDと新IDの紐付け](#旧idと新idの紐付け)
-- [曲別ランキングのキーボード操作](#曲別ランキングのキーボード操作)
 
 ## 曲の登録
 
@@ -53,12 +52,11 @@ curl -X PUT "https://ranking.kayomodoki.com/api/v1/admin/songs/<曲番>" \
 
 キャッシュ命中時の人気曲追加読み取りは0行。未命中時はSQLを1回実行する。5曲表示でも読み取りが5行になるわけではなく、受付日時の索引で3日間のプレイを読み、曲ごとに集計して曲マスターと結合する（参加者テーブルは読まない）。正確な行数は本番D1の `meta.rows_read` で確認する。
 
-
 DBの変更やデータの再登録は不要。
 
 ## 曲一覧の1位の作り直し
 
-曲一覧・閲覧APIの人数ごとの1位は、集計済みの`song_best`を読む。記録の受付時には自動で更新されるが、記録を直接変えたとき（除外、旧IDと新IDの紐付けの反映、SQLでの修正・削除）は作り直す。旧記録の移行SQLには作り直しが含まれている。
+曲一覧・閲覧APIの人数ごとの1位は、集計済みの`song_best`を読む。記録の受付時には自動で更新されるが、記録を直接変えたとき（除外、旧IDと新IDの紐付けの反映、SQLでの修正・削除）は作り直す。
 
 ```sh
 npm run rebuild-song-best -- --out imports/rebuild-song-best.sql
@@ -69,9 +67,9 @@ npx wrangler d1 execute DB --remote --file imports/rebuild-song-best.sql
 
 ## 旧IDと新IDの紐付け
 
-本人に確認できた旧ID（`legacy-`）と新IDの対応だけを旧記録に反映し、旧記録と新記録を同じ人（チーム）としてランキングに出す。名前の一致だけでは紐付けない（[データ設計](data-design.md#移行確定)の手順6・8）。
+本人に確認できた旧ID（`legacy-`）と新IDの対応だけを旧記録に反映し、旧記録と新記録を同じ人（チーム）としてランキングに出す。名前の一致だけでは紐付けない（[データ設計](data-design.md#旧記録とidの紐付け)）。
 
-1. 名前が完全一致する候補を出す（読み取りのみ。約11万行を読む）。結果は`imports/`のファイルにだけ書き、画面やログに名前を残さない。
+1. 名前が完全一致する候補を出す（読み取りのみ。走査行数は記録数に応じて増える）。結果は`imports/`のファイルにだけ書き、画面やログに名前を残さない。
 
    ```sh
    npx wrangler d1 execute DB --remote --json --command "SELECT l.player_id AS legacy_id, n.player_id AS new_id, l.name_at_play AS name FROM (SELECT DISTINCT player_id, name_at_play FROM play_participant WHERE player_id LIKE 'legacy-%') AS l JOIN (SELECT DISTINCT pp.player_id, pp.name_at_play FROM play_participant AS pp JOIN player AS p ON p.player_id = pp.player_id WHERE p.token_hash IS NOT NULL) AS n ON n.name_at_play = l.name_at_play" > imports/legacy-link-candidates.json
@@ -103,13 +101,8 @@ npx wrangler d1 execute DB --remote --file imports/rebuild-song-best.sql
      - 同じプレイにいる複数の旧IDを同じ新IDへ対応させた（`UNIQUE constraint failed`）
      - 旧ID・新IDがDBにない（`FOREIGN KEY constraint failed`）
    - 書き込みは対象の参加者・記録の数行ずつと`song_best`の作り直し分。
-- 紐付けた後は旧記録を取り込み直せない（[旧記録の移行](archive/launch-migration.md#旧記録の移行)）。
+- 紐付けた後は旧記録を取り込み直せない。
 - 候補・CSV・SQLには実際の名前やIDの対応が含まれる。終わったら削除する。
 
 秘密情報・実際のプレイヤー名や成績・移行用の対応表はGit、PR、Issue、AIの作業メモリ・作業メモやログに残さない。設計書とテストには架空データだけを使う。
 
-## 曲別ランキングのキーボード操作
-
-曲別ランキング・人数別ランキングでは、検索欄などを操作していないときに `←` で曲番号の小さい曲、`→` で大きい曲へ移動できます。公開されている曲だけを対象に欠番を飛ばし、先頭・末尾では止まります。プレイヤー名検索と選択人数を引き継ぎ、人数別ランキングのページ番号は1に戻します。
-
-長押し・読み込み中の再操作・表示直後500ミリ秒の操作は無視します。ランキングの先読みは行いません。隣接曲の判定は既存の曲一覧キャッシュ（最大5分）を共有するため、キャッシュがない場合・期限切れの場合は公開曲一覧の読み取りが発生します。
