@@ -1,9 +1,9 @@
 import { addDays, jstDayRange } from './daily'
 
-// トップの人気曲。昨日までの7日間（日本時間の0時区切り）の曲ごとのプレイ回数で数える。
+// トップの人気曲。昨日までの3日間（日本時間の0時区切り）の曲ごとのプレイ回数で数える。
 // 移行分（受付日時がインポート時刻）と除外済みは数えない
 
-export const POPULAR_SONG_DAYS = 7
+export const POPULAR_SONG_DAYS = 3
 export const POPULAR_SONG_LIMIT = 5
 // 期間は日付が変わるまで同じなので、isolateのメモリに保持する。日付変更時はTTL内でも再集計する。
 // 除外・曲情報の修正は翌日の再集計まで遅れる。isolateの再作成・複数起動では再取得される
@@ -47,7 +47,7 @@ export const clearPopularSongsCache = () => {
   popularSongsCache = null
 }
 
-// todayは日本時間の今日。期間はtodayの7日前からtodayの前日まで
+// todayは日本時間の今日。期間はtodayの3日前からtodayの前日まで
 export const fetchPopularSongs = async (db: D1Database, today: string): Promise<PopularSongs> => {
   if (popularSongsCache && popularSongsCache.today === today && Date.now() < popularSongsCache.expiresAt) {
     return popularSongsCache.popular
