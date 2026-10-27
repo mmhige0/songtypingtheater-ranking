@@ -22,7 +22,7 @@ const toSummary = (row: SongRow): SongSummary => ({
 
 // 曲一覧は閲覧のたびに全件走査となりD1の読み取り行数の大半を占めていたため、承認済みの全曲を
 // isolateのメモリに保持して絞り込み・並べ替えはJSで行う。曲の登録・更新は最大TTLの間反映されない
-export const SONG_CACHE_TTL_MS = 5 * 60 * 1000
+export const SONG_CACHE_TTL_MS = 60 * 60 * 1000
 
 type CachedSong = SongSummary & { levelSortValue: number | null; songNumber: number; createdAt: string }
 
