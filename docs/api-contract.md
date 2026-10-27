@@ -1,6 +1,6 @@
 # ランキング送信API v1 — Webサイト側設計
 
-更新日: 2026-10-25（日本時間）
+更新日: 2026-10-28（日本時間）
 
 Unity/C#のホストからHTTPSでUTF-8 JSONを受信する。提示されたゲーム側仕様v1とレビュー回答を反映した設計文書。初回登録・成績送信・曲登録APIは実装済みで、Cloudflareへデプロイ済み（`https://ranking.kayomodoki.com`）。
 初回登録のクライアント生成token方式、受付日時による先着判定、gameVersion必須は採用済み。再送キュー最大100件・初回保存から7日はゲーム側への推奨値であり、ゲーム開発者とは未合意。
@@ -329,6 +329,18 @@ levelSortValueはサーバーがlevelから算出し、本文では受け取ら�
 - 1位が同点で複数組いる場合は、ランキングの表示順で先頭の組（代表記録）を返し、残りの組数をtiedOthersに入れる。isFullCombo・participants（参加者の時点名と色、R→B→Y→G順）はその代表記録のもの。isFullComboのnullは不明（移行分）。
 - hasFullComboは1位に限らず、その人数の記録（除外分を除く）に1件でもフルコンボがあればtrue。
 - 1人のnameはparticipantsの1人目と同じ（以前からの項目として残す）。
+
+### GET /api/v1/songs/{gameSongId}/neighbors
+
+曲番号順の前後の公開曲を返す。曲別・人数別ランキングでは矢印キーを押したときだけ呼び、ページ表示時には呼ばない。
+
+```json
+{ "previous": "001", "next": "010" }
+```
+
+先頭のprevious・末尾のnextはnull。欠番・非公開曲は飛ばし、曲番号の先頭ゼロは保持する。不正な曲番号（3〜8桁の数字以外）は400 INVALID_REQUEST、存在しない曲・非公開曲は404 NOT_FOUND。
+
+既存の曲一覧メモリキャッシュ（最大1時間）を共有し、キャッシュ未保持・期限切れ時だけ公開曲一覧を1クエリで取得する。ランキング・参加者は取得しない。レスポンスはCache-Control: no-store。閲覧APIと同じIP制限の対象なので、曲移動時はこの問い合わせと移動先ページ表示の2リクエストが発生する。
 
 ### GET /api/v1/songs/{gameSongId}/rankings
 

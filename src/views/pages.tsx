@@ -5,7 +5,7 @@ import type { BestScore, BestScores, RankingPage } from '../lib/ranking'
 import type { Child } from 'hono/jsx'
 import { SongListControls, SongListScript } from './mobile-song-list'
 import { SongNavigation } from './song-navigation'
-import type { AdjacentSongs, SongSummary } from '../lib/song-query'
+import type { SongSummary } from '../lib/song-query'
 import {
   LEVEL_FILTER_MAX,
   LEVEL_FILTER_MIN,
@@ -490,7 +490,6 @@ export const DailyPage = ({ date, today, songs }: DailyPageProps) => (
 // ---- 曲別ランキング（広い画面は1〜4人を横に並べ、狭い画面はタブで切り替え） ----
 
 export type SongRankingProps = {
-  adjacent: AdjacentSongs
   song: SongSummary
   rankings: Map<PlayerCount, RankingPage>
   selected: PlayerCount
@@ -500,7 +499,7 @@ export type SongRankingProps = {
 
 const emptyMessage = (filtered: boolean) => (filtered ? '条件に一致する記録はありません' : '記録はまだありません')
 
-export const SongRankingPage = ({ adjacent, song, rankings, selected, name }: SongRankingProps) => (
+export const SongRankingPage = ({ song, rankings, selected, name }: SongRankingProps) => (
   <Layout title={song.title}>
     <h1 class="page-title">{song.title}</h1>
     <SongMeta song={song} />
@@ -553,14 +552,13 @@ export const SongRankingPage = ({ adjacent, song, rankings, selected, name }: So
       </div>
     </div>
     <LiveSearchScript />
-    <SongNavigation adjacent={adjacent} />
+    <SongNavigation gameSongId={song.gameSongId} />
   </Layout>
 )
 
 // ---- 人数別ランキング（ページ送り） ----
 
 export type PlayerRankingProps = {
-  adjacent: AdjacentSongs
   song: SongSummary
   players: PlayerCount
   ranking: RankingPage
@@ -569,7 +567,7 @@ export type PlayerRankingProps = {
   limit: number
 }
 
-export const PlayerRankingPage = ({ adjacent, song, players, ranking, name, page }: PlayerRankingProps) => {
+export const PlayerRankingPage = ({ song, players, ranking, name, page }: PlayerRankingProps) => {
   const path = `${songPath(song.gameSongId)}/players/${players}`
   return (
     <Layout title={`${song.title}（${players}人）`}>
@@ -597,7 +595,7 @@ export const PlayerRankingPage = ({ adjacent, song, players, ranking, name, page
         />
       </div>
       <LiveSearchScript />
-      <SongNavigation adjacent={adjacent} />
+      <SongNavigation gameSongId={song.gameSongId} />
     </Layout>
   )
 }

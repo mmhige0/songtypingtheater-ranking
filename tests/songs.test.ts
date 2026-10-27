@@ -252,3 +252,42 @@ describe('best scores in the song list', () => {
     expect(best.get(other)!['1']).toMatchObject({ score: 10, name: 'Carol', tiedOthers: 0 })
   })
 })
+
+
+describe('GET /api/v1/songs/:gameSongId/neighbors', () => {
+  it('skips gaps and unpublished songs, preserves zero padding and stops at the ends', async () => {
+    await insertSong('001', '架空の曲1')
+    await insertSong('010', '架空の曲10')
+    await insertSong('1000', '架空の曲1000')
+    const hidden = await insertSong('020', '非公開の架空曲')
+    await env.DB.prepare("UPDATE song SET status = 'pending' WHERE id = ?").bind(hidden).run()
+    const prepare = vi.spyOn(env.DB, 'prepare')
+    try {
+      for (const [id, previous, next] of [['001', null, '010'], ['010', '001', '1000'], ['1000', '010', null]]) {
+        const res = await get(`/api/v1/songs/${id}/neighbors`)
+        expect(res.status).toBe(200)
+        expect(res.headers.get('Cache-Control')).toBe('no-store')
+        expect(await res.json()).toEqual({ previous, next })
+      }
+      // 初回の公開曲一覧1クエリのみ。ランキング・参加者は読まず、以降は既存キャッシュを使う。
+      expect(prepare).toHaveBeenCalledTimes(1)
+      expect(prepare.mock.calls[0]![0]).toContain("FROM song WHERE status = 'approved'")
+    } finally {
+      prepare.mockRestore()
+    }
+    expect((await get('/api/v1/songs/020/neighbors')).status).toBe(404)
+    expect((await get('/api/v1/songs/999/neighbors')).status).toBe(404)
+  })
+
+  it('rejects malformed song numbers without reading the database', async () => {
+    const prepare = vi.spyOn(env.DB, 'prepare')
+    try {
+      for (const id of ['abc', '12', '123456789']) {
+        expect((await get(`/api/v1/songs/${id}/neighbors`)).status).toBe(400)
+      }
+      expect(prepare).not.toHaveBeenCalled()
+    } finally {
+      prepare.mockRestore()
+    }
+  })
+})
