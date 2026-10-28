@@ -14,7 +14,7 @@ if(navigating||Date.now()<readyAt)return;
 var current=config.dataset.songId;
 if(!/^\\d{3,8}$/.test(current))return;
 var number=Number(current)+(e.key==='ArrowLeft'?-1:1);
-if(number<0||number>99999999)return;
+if(number<1||number>99999999)return;
 var songId=String(number).padStart(3,'0');
 var url=new URL(window.location.href);
 url.pathname=url.pathname.replace(/^\\/songs\\/[^/]+/, '/songs/'+encodeURIComponent(songId));

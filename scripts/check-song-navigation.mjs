@@ -78,11 +78,21 @@ test('increments/decrements across digit boundaries with at least three digits',
   }
 })
 
-test('does not navigate to negative or more than eight-digit song numbers', () => {
-  for (const [current, key] of [['000', 'ArrowLeft'], ['99999999', 'ArrowRight']]) {
+test('stops at 001 and at the eight-digit format limit', () => {
+  for (const [current, key] of [['001', 'ArrowLeft'], ['99999999', 'ArrowRight']]) {
     const s = setup('/songs/' + current)
     s.time(500)
     s.key({ key })
     assert.equal(s.visits.length, 0)
+  }
+})
+
+
+test('can move forward from 001 and return to 001', () => {
+  for (const [current, key, expected] of [['001', 'ArrowRight', '002'], ['002', 'ArrowLeft', '001']]) {
+    const s = setup('/songs/' + current)
+    s.time(500)
+    s.key({ key })
+    assert.equal(new URL(s.visits[0]).pathname, '/songs/' + expected)
   }
 })
