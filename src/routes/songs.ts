@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { ApiError, invalidRequest } from '../lib/http'
 import { limitByIp } from '../lib/rate-limit'
 import { fetchBestScores, fetchRankings } from '../lib/ranking'
-import { findAdjacentSongs, findApprovedSong, searchSongs, type SongSummary } from '../lib/song-query'
+import { findApprovedSong, searchSongs, type SongSummary } from '../lib/song-query'
 import {
   parseFlag,
   parseLevel,
@@ -48,14 +48,14 @@ songsRoute.get('/', async (c) => {
   })
 })
 
-// 曲別ページ表示では呼ばず、矢印キーを押した時だけ公開曲の隣接情報を取得する。
-songsRoute.get('/:gameSongId/neighbors', async (c) => {
-  const gameSongId = c.req.param('gameSongId')
-  if (!/^\d{3,8}$/.test(gameSongId)) throw invalidRequest('曲番号は3〜8桁の数字にしてください')
-  const adjacent = await findAdjacentSongs(c.env.DB, gameSongId)
-  if (!adjacent) throw new ApiError(404, 'NOT_FOUND', '曲が見つかりません')
+// 曲番号を±1した移動先の公開状態だけを確認し、全曲・ランキングは読まない。
+// HonoのHEADはGETハンドラーで処理されるため、本文なしのGETとして定義する。
+songsRoute.get('/:gameSongId/exists', async (c) => {
   c.header('Cache-Control', 'no-store')
-  return c.json(adjacent)
+  const gameSongId = c.req.param('gameSongId')
+  if (!/^\d{3,8}$/.test(gameSongId)) return c.body(null, 400)
+  const song = await findApprovedSong(c.env.DB, gameSongId)
+  return c.body(null, song ? 200 : 404)
 })
 
 songsRoute.get('/:gameSongId/rankings', async (c) => {

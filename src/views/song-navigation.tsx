@@ -1,4 +1,4 @@
-// 隣接曲の問い合わせはキー操作時だけ行い、通常のページ表示では追加取得しない。
+// キー操作時に曲番号を±1し、その1曲の公開状態だけを確認する。全曲一覧は取得しない。
 export const SONG_NAVIGATION_SCRIPT = `(function(){
 var config=document.getElementById('song-navigation');
 if(!config)return;
@@ -14,18 +14,18 @@ var target=e.target;
 if(target&&(target.isContentEditable||(target.closest&&target.closest('input,textarea,select,button,[role="tab"],[role="slider"],[role="textbox"]'))))return;
 e.preventDefault();
 if(navigating||Date.now()<readyAt)return;
+var current=config.dataset.songId;
+if(!/^\\d{3,8}$/.test(current))return;
+var number=Number(current)+(e.key==='ArrowLeft'?-1:1);
+if(number<0||number>99999999)return;
+var songId=String(number).padStart(3,'0');
 navigating=true;
 var request=new AbortController();
 controller=request;
 var timeout=setTimeout(function(){request.abort()},10000),moving=false;
 try{
-var response=await fetch('/api/v1/songs/'+encodeURIComponent(config.dataset.songId)+'/neighbors',{signal:request.signal});
-if(!response.ok)throw new Error('隣接曲を取得できません');
-var adjacent=await response.json();
-if(request.signal.aborted||controller!==request)return;
-var songId=adjacent[e.key==='ArrowLeft'?'previous':'next'];
-if(songId===null)return;
-if(typeof songId!=='string'||!/^\\d{3,8}$/.test(songId))throw new Error('曲番号が不正です');
+var response=await fetch('/api/v1/songs/'+encodeURIComponent(songId)+'/exists',{method:'HEAD',signal:request.signal});
+if(!response.ok||request.signal.aborted||controller!==request)return;
 var url=new URL(window.location.href);
 url.pathname=url.pathname.replace(/^\\/songs\\/[^/]+/, '/songs/'+encodeURIComponent(songId));
 url.searchParams.delete('page');
