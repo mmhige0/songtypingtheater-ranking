@@ -703,14 +703,35 @@ describe('view rate limit', () => {
 })
 
 describe('song keyboard navigation', () => {
-  it('uses approved songs in numeric order, skips gaps, and stops at the ends', async () => {
-    await insertSong('010', '架空の曲10')
-    await insertSong('1000', '架空の曲1000')
-    const hidden = await insertSong('020', '非公開の架空曲')
-    await env.DB.prepare("UPDATE song SET status = 'pending' WHERE id = ?").bind(hidden).run()
-    expect(await html('/songs/001')).toContain('data-previous="" data-next="010"')
-    expect(await html('/songs/010?name=test&players=3')).toContain('data-previous="001" data-next="1000"')
-    expect(await html('/songs/1000/players/4?page=2')).toContain('data-previous="010" data-next=""')
+  it('renders keyboard navigation without loading the song list on either ranking page', async () => {
+    for (const path of ['/songs/001', '/songs/001/players/3']) {
+      const prepare = vi.spyOn(env.DB, 'prepare')
+      try {
+        const text = await html(path)
+        expect(text).toContain('id="song-navigation" hidden="" data-song-id="001"')
+        expect(text).not.toContain('data-previous=')
+        expect(text).not.toContain('data-next=')
+        const queries = prepare.mock.calls.map(([query]) => query)
+        // 曲情報はgame_song_id指定で読み、隣接曲用の全曲取得は実行しない。
+        const songQueries = queries.filter((query) => /FROM song\b/i.test(query))
+        expect(songQueries).toHaveLength(1)
+        expect(songQueries[0]).toContain('game_song_id = ?')
+      } finally {
+        prepare.mockRestore()
+      }
+    }
     expect(await html('/songs')).not.toContain('id="song-navigation"')
   })
+})
+
+
+it('shows the normal 404 page when stepping to a missing or unpublished song', async () => {
+  const hidden = await insertSong('002', '非公開の架空曲')
+  await env.DB.prepare("UPDATE song SET status = 'pending' WHERE id = ?").bind(hidden).run()
+  for (const id of ['000', '002', '999']) {
+    for (const suffix of ['', '/players/3']) {
+      const text = await html(`/songs/${id}${suffix}`, 404)
+      expect(text).toContain('曲が見つかりません')
+    }
+  }
 })

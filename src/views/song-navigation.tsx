@@ -1,6 +1,4 @@
-import type { AdjacentSongs } from '../lib/song-query'
-
-// 通常のページ遷移だけを行う。ランキングの先読みや独自の履歴キャッシュは作らない。
+// 曲番号を±1して通常のページ遷移を行う。事前確認や全曲一覧の取得はしない。
 export const SONG_NAVIGATION_SCRIPT = `(function(){
 var config=document.getElementById('song-navigation');
 if(!config)return;
@@ -11,10 +9,13 @@ if(e.defaultPrevented||e.repeat||e.isComposing||e.ctrlKey||e.metaKey||e.altKey||
 if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight')return;
 var target=e.target;
 if(target&&(target.isContentEditable||(target.closest&&target.closest('input,textarea,select,button,[role="tab"],[role="slider"],[role="textbox"]'))))return;
-var songId=config.dataset[e.key==='ArrowLeft'?'previous':'next'];
-if(!songId)return;
 e.preventDefault();
 if(navigating||Date.now()<readyAt)return;
+var current=config.dataset.songId;
+if(!/^\\d{3,8}$/.test(current))return;
+var number=Number(current)+(e.key==='ArrowLeft'?-1:1);
+if(number<1||number>99999999)return;
+var songId=String(number).padStart(3,'0');
 var url=new URL(window.location.href);
 url.pathname=url.pathname.replace(/^\\/songs\\/[^/]+/, '/songs/'+encodeURIComponent(songId));
 url.searchParams.delete('page');
@@ -26,9 +27,9 @@ try{window.location.assign(url.href)}catch(error){navigating=false;throw error}
 });
 })()`
 
-export const SongNavigation = ({ adjacent }: { adjacent: AdjacentSongs }) => (
+export const SongNavigation = ({ gameSongId }: { gameSongId: string }) => (
   <>
-    <span id="song-navigation" hidden data-previous={adjacent.previous ?? ''} data-next={adjacent.next ?? ''} />
+    <span id="song-navigation" hidden data-song-id={gameSongId} />
     <script dangerouslySetInnerHTML={{ __html: SONG_NAVIGATION_SCRIPT }} />
   </>
 )
