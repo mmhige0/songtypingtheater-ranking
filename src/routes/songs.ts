@@ -48,16 +48,6 @@ songsRoute.get('/', async (c) => {
   })
 })
 
-// 曲番号を±1した移動先の公開状態だけを確認し、全曲・ランキングは読まない。
-// HonoのHEADはGETハンドラーで処理されるため、本文なしのGETとして定義する。
-songsRoute.get('/:gameSongId/exists', async (c) => {
-  c.header('Cache-Control', 'no-store')
-  const gameSongId = c.req.param('gameSongId')
-  if (!/^\d{3,8}$/.test(gameSongId)) return c.body(null, 400)
-  const song = await findApprovedSong(c.env.DB, gameSongId)
-  return c.body(null, song ? 200 : 404)
-})
-
 songsRoute.get('/:gameSongId/rankings', async (c) => {
   const players = parsePlayerCount(c.req.query('players'))
   if (players === undefined) throw invalidRequest('playersは1〜4にしてください')

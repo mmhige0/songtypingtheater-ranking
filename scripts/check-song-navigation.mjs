@@ -9,8 +9,7 @@ const script = runInNewContext('`' + source.match(/SONG_NAVIGATION_SCRIPT = `([\
 
 function setup(path = '/songs/010?name=test&players=2&page=3', selected = '4') {
   let now = 0
-  const events = {}, visits = [], requests = [], timers = new Map()
-  let timerId = 0
+  const events = {}, visits = []
   const document = {
     getElementById: () => ({ dataset: { songId: path.split('/')[2].split('?')[0] } }),
     querySelector: () => selected ? { value: selected } : null,
@@ -20,53 +19,34 @@ function setup(path = '/songs/010?name=test&players=2&page=3', selected = '4') {
     location: { href: 'https://example.com' + path, assign: url => visits.push(url) },
     addEventListener: (event, callback) => { events[event] = callback },
   }
-  const fetch = (url, { signal, method }) => new Promise((resolve, reject) => {
-    requests.push({ url, signal, method, resolve, reject })
-    signal.addEventListener('abort', () => reject(new Error('aborted')))
-  })
-  runInNewContext(script, {
-    document, window, URL, encodeURIComponent, fetch,
-    AbortController: globalThis.AbortController,
-    Date: { now: () => now },
-    setTimeout: callback => { timers.set(++timerId, callback); return timerId },
-    clearTimeout: id => timers.delete(id),
-  })
+  // fetchを与えない。存在確認・隣接曲問い合わせを追加するとテストが失敗する。
+  runInNewContext(script, { document, window, URL, encodeURIComponent, Date: { now: () => now } })
   return {
-    visits, events, requests, timers,
+    visits, events,
     time: value => { now = value },
     key: (overrides = {}) => events.keydown({ key: 'ArrowRight', preventDefault() {}, ...overrides }),
-    respond: (status = 200) => requests.at(-1).resolve({ ok: status === 200, status }),
   }
 }
 
-test('fetches only on a valid key, blocks repeats/in-flight input, and preserves filters/current tab', async () => {
+test('navigates directly without fetching, blocks repeats/rapid input, and preserves filters/current tab', () => {
   const s = setup()
-  assert.equal(s.requests.length, 0)
-  await s.key()
+  assert.equal(s.visits.length, 0)
+  s.key()
   s.time(500)
-  await s.key({ repeat: true })
-  assert.equal(s.requests.length, 0)
-  const pending = s.key()
-  await s.key({ key: 'ArrowLeft' })
-  assert.equal(s.requests.length, 1)
-  assert.equal(s.requests[0].url, '/api/v1/songs/011/exists')
-  assert.equal(s.requests[0].method, 'HEAD')
-  s.respond()
-  await pending
+  s.key({ repeat: true })
+  assert.equal(s.visits.length, 0)
+  s.key()
+  s.key({ key: 'ArrowLeft' })
   assert.deepEqual(s.visits, ['https://example.com/songs/011?name=test&players=4'])
-  await s.key()
-  assert.equal(s.requests.length, 1)
   s.events.pageshow()
-  await s.key()
-  assert.equal(s.requests.length, 1)
+  s.key()
+  assert.equal(s.visits.length, 1)
   s.time(1000)
-  const back = s.key({ key: 'ArrowLeft' })
-  s.respond()
-  await back
+  s.key({ key: 'ArrowLeft' })
   assert.equal(s.visits.length, 2)
 })
 
-test('ignores editing, controls, composition, modifiers and handled events without fetching', async () => {
+test('ignores editing, controls, composition, modifiers and handled events', () => {
   const s = setup()
   s.time(500)
   for (const event of [
@@ -75,80 +55,34 @@ test('ignores editing, controls, composition, modifiers and handled events witho
     { isComposing: true }, { defaultPrevented: true },
     { ctrlKey: true }, { altKey: true }, { metaKey: true }, { shiftKey: true },
     { key: 'ArrowDown' },
-  ]) await s.key(event)
-  assert.equal(s.requests.length, 0)
+  ]) s.key(event)
+  assert.equal(s.visits.length, 0)
 })
 
-test('keeps the player-specific route and stops at the boundary', async () => {
+test('keeps the player-specific route and resets the ranking page number', () => {
   const s = setup('/songs/010/players/3?name=test&page=2', null)
   s.time(500)
-  const boundary = s.key()
-  s.respond(404)
-  await boundary
-  assert.equal(s.visits.length, 0)
-  s.time(1000)
-  const previous = s.key({ key: 'ArrowLeft' })
-  s.respond()
-  await previous
+  s.key({ key: 'ArrowLeft' })
   assert.deepEqual(s.visits, ['https://example.com/songs/009/players/3?name=test'])
 })
 
-test('unlocks after network/HTTP errors or timeout so the next key can retry', async () => {
-  for (const failure of ['network', 'http', 'timeout']) {
-    const s = setup()
-    s.time(500)
-    const pending = s.key()
-    if (failure === 'network') s.requests[0].reject(new Error('offline'))
-    if (failure === 'http') s.respond(500)
-    if (failure === 'timeout') s.timers.values().next().value()
-    await pending
-    assert.equal(s.visits.length, 0)
-    assert.equal(s.timers.size, 0)
-    s.time(1000)
-    const retry = s.key()
-    assert.equal(s.requests.length, 2)
-    s.respond()
-    await retry
-    assert.equal(s.visits.length, 1)
-  }
-})
-
-test('ignores stale responses after history restoration', async () => {
-  const s = setup()
-  s.time(500)
-  const pending = s.key()
-  s.events.pageshow()
-  await pending
-  assert.equal(s.requests[0].signal.aborted, true)
-  assert.equal(s.visits.length, 0)
-  s.time(1000)
-  const retry = s.key()
-  s.respond()
-  await retry
-  assert.equal(s.visits.length, 1)
-})
-
-
-test('increments/decrements across digit boundaries with at least three digits', async () => {
+test('increments/decrements across digit boundaries with at least three digits', () => {
   for (const [current, key, expected] of [
     ['009', 'ArrowRight', '010'], ['010', 'ArrowLeft', '009'],
     ['999', 'ArrowRight', '1000'], ['1000', 'ArrowLeft', '999'],
   ]) {
     const s = setup('/songs/' + current)
     s.time(500)
-    const pending = s.key({ key })
-    assert.equal(s.requests[0].url, '/api/v1/songs/' + expected + '/exists')
-    s.respond()
-    await pending
+    s.key({ key })
     assert.equal(new URL(s.visits[0]).pathname, '/songs/' + expected)
   }
 })
 
-test('does not fetch negative or more than eight-digit song numbers', async () => {
+test('does not navigate to negative or more than eight-digit song numbers', () => {
   for (const [current, key] of [['000', 'ArrowLeft'], ['99999999', 'ArrowRight']]) {
     const s = setup('/songs/' + current)
     s.time(500)
-    await s.key({ key })
-    assert.equal(s.requests.length, 0)
+    s.key({ key })
+    assert.equal(s.visits.length, 0)
   }
 })

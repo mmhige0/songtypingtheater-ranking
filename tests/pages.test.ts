@@ -723,3 +723,15 @@ describe('song keyboard navigation', () => {
     expect(await html('/songs')).not.toContain('id="song-navigation"')
   })
 })
+
+
+it('shows the normal 404 page when stepping to a missing or unpublished song', async () => {
+  const hidden = await insertSong('002', '非公開の架空曲')
+  await env.DB.prepare("UPDATE song SET status = 'pending' WHERE id = ?").bind(hidden).run()
+  for (const id of ['000', '002', '999']) {
+    for (const suffix of ['', '/players/3']) {
+      const text = await html(`/songs/${id}${suffix}`, 404)
+      expect(text).toContain('曲が見つかりません')
+    }
+  }
+})
