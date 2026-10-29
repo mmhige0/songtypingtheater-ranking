@@ -6,7 +6,7 @@ Cloudflare D1で実装しているデータ構成。物理スキーマの正本�
 
 | エンティティ | 主な情報 | 制約・意味 |
 |---|---|---|
-| Song | id、gameSongId、title、artist、level、levelSortValue、status、createdAt、updatedAt | 内部IDを主キーとし、Play.songRefIdはSong.idを参照する。gameSongIdはnull許容でnull以外を一意（将来の未承認曲用）。statusはapproved / pending / rejected / withdrawnを想定し、v1ではapprovedだけを作成する。表示文字列と難易度ソート値を分ける |
+| Song | id、gameSongId、title、artist、level、levelSortValue、status、createdAt、updatedAt | 内部IDを主キーとし、Play.songRefIdはSong.idを参照する。gameSongIdはnull許容でnull以外を一意（旧構想との互換性のためnull許容）。statusはapproved / pending / rejected / withdrawnを想定し、v1ではapprovedだけを作成する。表示文字列と難易度ソート値を分ける |
 | Player | playerId、tokenHash、revokedAt、createdAt | 新規はセーブデータのUUIDv4。旧記録は`legacy-`で始まる内部専用ID。playerId自体は認証情報ではない。tokenHashはクライアント生成tokenの個別送信認証で、null許容・null以外は一意。正規token文字列のUTF-8に対するSHA-256のみ保存し、平文・復元可能な暗号化tokenは保存しない。tokenHashがnullでないことを初回登録完了とみなす（移行用Playerは常にnull）。1プレイヤー1tokenのため別テーブルにしない |
 | Play | playId、songRefId、score、isFullCombo、isTaipen、receivedAt、gameVersion、hostPlayerId、playerCount、teamKey、excludedAt | 新規の全受理記録と移行で選んだ最高記録を保存。playIdは一意。APIのsongId（gameSongId）は受付時にSong.idへ変換してsongRefIdに保存する。FC・モード・バージョン・hostPlayerIdは移行用にnull許容。hostPlayerIdがnullの記録を移行分とみなす（APIはhostPlayerIdを必須とするため）。teamKeyは必須の文字列列で、参加者IDから生成して保存する（非一意） |
 | PlayParticipant | playId、playerId、nameAtPlay、colorAtPlay | プレイ当時の名前・色を保持。colorAtPlayは必須。playId+playerIdとplayId+colorAtPlayをそれぞれ一意にする。表示順は色のR→B→Y→Gで決め、受信順は保存しない |
@@ -20,7 +20,6 @@ Cloudflare D1で実装しているデータ構成。物理スキーマの正本�
 - 公開の曲一覧・ランキング・成績受付の対象はstatus=approvedの曲だけ。v1ではgameSongIdを必ず持つapprovedの曲だけが存在する。
 - 曲情報の修正は同じ行の更新とし、内部ID・gameSongIdを変えない。修正しても既存のPlayと代表記録はそのまま残る。
 - levelSortValueはlevelからサーバー側で算出する。LyricDataCreatorと同じく、整数部×3に「+」なら+1、「-」なら-1を加える。levelがnull・`-`・`?`ならlevelSortValueはnull（難易度順では最後）。`-`・`?`は文字列のまま保存・表示する。
-- 将来の譜面投稿では、未承認曲（pending、gameSongIdなし）として仮登録し、承認時にgameSongIdを設定してapprovedにする。このためgameSongIdを主キーにしない。
 - 曲の削除・gameSongIdの変更・非公開化は管理機能の残課題とする。
 
 ## 組み合わせと代表記録
@@ -66,7 +65,7 @@ IDの衝突対策だけでは、同じセーブのコピーによる同一IDの�
 
 ## LyricDataCreator連携
 
-曲番・曲名・アーティスト・難易度の正本はランキングDB。公開曲一覧APIを使うランキング→LyricDataCreatorの一方向連携とし、逆同期は行わない。譜面TXT・YouTube URLはランキングDBに保存しない。LyricDataCreator側の取込処理の運用状態は同リポジトリで管理する。
+曲情報（曲番号・曲名・アーティスト・難易度）はランキングDBで管理する。LyricDataCreatorは、管理者の承認後に既存の曲登録APIを利用する。譜面本文・YouTube URLはランキングDBに保存しない。
 
 ## 旧記録とIDの紐付け
 
