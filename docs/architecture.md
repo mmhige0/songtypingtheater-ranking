@@ -1,6 +1,6 @@
 # システム構成
 
-更新日: 2026-10-25（日本時間）
+更新日: 2026-10-31（日本時間）
 
 Cloudflareの無料プランで構築する。他構成との比較は行わず、この構成で進める。
 無料枠の数値・機能の提供状況は変わり得る。2026-10-11時点の公式ドキュメントの確認結果は[無料枠・制約の確認結果](#無料枠制約の確認結果)を参照。
@@ -68,7 +68,7 @@ D1_ERROR: UNIQUE constraint failed: play.play_id: SQLITE_CONSTRAINT (extended: S
 | POST /api/v1/plays | 認証済みtokenのplayerId | 60秒20リクエスト |
 | POST /api/v1/installations | 送信元IP | 60秒5リクエスト |
 | PUT /api/v1/admin/songs/{gameSongId} | なし | 管理用キーで認証するため制限しない（初期登録の連続送信を妨げない） |
-| GET /api/v1/songs以下・閲覧画面 | 送信元IP | 60秒120リクエスト（送信APIと別枠。実測後に調整） |
+| GET /api/v1/songs以下・閲覧画面 | 送信元IP | 60秒60リクエスト（送信APIと別枠。実測後に調整） |
 
 - 期間は10秒または60秒しか選べない前提で、元の案（10分100、1時間20）に近い値にした。値は運用設定として実測後に調整する。
 - Workers Rate Limitingはデータセンター単位・結果整合の近似的な制限であり、全体で厳密な回数にはならない（公式に「accurate accounting systemとして使わない」と明記）。
