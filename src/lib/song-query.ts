@@ -78,7 +78,7 @@ const matches = (song: CachedSong, q: string | null, level: string | null, level
   if (q === null) return true
   const lq = normalizeSearchText(q)
   return (
-    song.gameSongId.includes(q) || normalizeSearchText(song.title).includes(lq) || normalizeSearchText(song.artist ?? '').includes(lq)
+    song.gameSongId.includes(q.replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0))) || normalizeSearchText(song.title).includes(lq) || normalizeSearchText(song.artist ?? '').includes(lq)
   )
 }
 
