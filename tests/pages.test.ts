@@ -158,6 +158,43 @@ describe('top page', () => {
     expect(popular.match(/>1位</g)).toHaveLength(5)
   })
 
+  it('selects tied songs by latest play then song ID before assigning ranks', async () => {
+    const refs = []
+    for (let i = 0; i < 7; i++) refs.push(await insertSong(String(100 + i), `曲${i}`))
+    const counts = [3, 3, 2, 2, 2, 2, 1]
+    for (let i = 0; i < refs.length; i++) {
+      for (let j = 0; j < counts[i]!; j++) {
+        await insertPlay({
+          playId: `popular-${i}-${j}`, songRefId: refs[i]!, score: 1,
+          participants: solo(0, 'P0'),
+          receivedAt: new Date(Date.parse(FIRST) + (i === 5 ? 100 : 0)).toISOString(),
+        })
+      }
+    }
+    const { songs } = await fetchPopularSongs(env.DB, '2026-10-14')
+    expect(songs.map(({ gameSongId, rank }) => [gameSongId, rank])).toEqual([
+      ['100', 1], ['101', 1], ['105', 3], ['102', 3], ['103', 3],
+    ])
+  })
+
+  it('removes unpublished songs after selecting five without filling their places', async () => {
+    const refs = []
+    for (let i = 0; i < 7; i++) refs.push(await insertSong(String(100 + i), `曲${i}`))
+    for (let i = 0; i < refs.length; i++) {
+      for (let j = 0; j < 7 - i; j++) {
+        await insertPlay({
+          playId: `popular-${i}-${j}`, songRefId: refs[i]!, score: 1,
+          participants: solo(0, 'P0'), receivedAt: FIRST,
+        })
+      }
+    }
+    await env.DB.prepare("UPDATE song SET status = 'pending' WHERE id IN (?, ?)").bind(refs[0], refs[2]).run()
+    const { songs } = await fetchPopularSongs(env.DB, '2026-10-14')
+    expect(songs.map(({ gameSongId, rank }) => [gameSongId, rank])).toEqual([
+      ['101', 1], ['103', 2], ['104', 3],
+    ])
+  })
+
   it('caches the counts until the date changes or 24 hours pass', async () => {
     const song2 = await insertSong('002', '別の曲')
     await insertPlay({ playId: 'p0', songRefId: song, score: 1, participants: solo(0, 'P0'), receivedAt: FIRST })
