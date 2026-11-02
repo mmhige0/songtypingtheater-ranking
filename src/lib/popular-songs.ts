@@ -1,9 +1,9 @@
 import { addDays, jstDayRange } from './daily'
 
-// トップの人気曲。昨日までの3日間（日本時間の0時区切り）の曲ごとのプレイ回数で数える。
+// トップの人気曲。昨日までの7日間（日本時間の0時区切り）の曲ごとのプレイ回数で数える。
 // 移行分（受付日時がインポート時刻）と除外済みは数えない
 
-export const POPULAR_SONG_DAYS = 3
+export const POPULAR_SONG_DAYS = 7
 export const POPULAR_SONG_LIMIT = 5
 // 期間は日付が変わるまで同じなので、isolateのメモリに保持する。日付変更時はTTL内でも再集計する。
 // 除外・曲情報の修正は翌日の再集計まで遅れる。isolateの再作成・複数起動では再取得される
@@ -20,7 +20,8 @@ export type PopularSongs = {
 // 数える記録（playの別名p）。?1・?2 受付日時の範囲（?1を含み?2を含まない）
 const COUNTED = 'p.received_at >= ?1 AND p.received_at < ?2 AND p.host_player_id IS NOT NULL AND p.excluded_at IS NULL'
 
-// 同じ回数は同じ順位。表示順は回数 → 期間中の最後のプレイが新しい順
+// 上位5曲を先に確定し、非公開曲は補充せずに除く。残った曲の同じ回数は同じ順位。
+// 表示順は回数 → 期間中の最後のプレイが新しい順 → 曲ID順
 const queryPopularSongs = async (db: D1Database, from: string, to: string, limit: number) => {
   const { results } = await db
     .prepare(
@@ -29,11 +30,17 @@ const queryPopularSongs = async (db: D1Database, from: string, to: string, limit
          FROM play AS p
          WHERE ${COUNTED}
          GROUP BY p.song_ref_id
+       ),
+       top_five AS MATERIALIZED (
+         SELECT song_ref_id, plays, last_at
+         FROM counted
+         ORDER BY plays DESC, last_at DESC, song_ref_id
+         LIMIT ?3
        )
        SELECT RANK() OVER (ORDER BY c.plays DESC) AS rank, s.game_song_id AS gameSongId, s.title, s.artist
-       FROM counted AS c JOIN song AS s ON s.id = c.song_ref_id AND s.status = 'approved'
-       ORDER BY rank, c.last_at DESC, s.id
-       LIMIT ?3`,
+       FROM top_five AS c CROSS JOIN song AS s
+       WHERE s.id = c.song_ref_id AND s.status = 'approved'
+       ORDER BY rank, c.last_at DESC, s.id`,
     )
     .bind(from, to, limit)
     .all<PopularSong>()
@@ -47,7 +54,7 @@ export const clearPopularSongsCache = () => {
   popularSongsCache = null
 }
 
-// todayは日本時間の今日。期間はtodayの3日前からtodayの前日まで
+// todayは日本時間の今日。期間はtodayの7日前からtodayの前日まで
 export const fetchPopularSongs = async (db: D1Database, today: string): Promise<PopularSongs> => {
   if (popularSongsCache && popularSongsCache.today === today && Date.now() < popularSongsCache.expiresAt) {
     return popularSongsCache.popular
