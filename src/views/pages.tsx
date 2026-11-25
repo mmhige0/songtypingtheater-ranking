@@ -162,10 +162,6 @@ export const TopPage = ({ today, dailySongs, popular }: TopPageProps) => {
             <path d="M12 20h9" />
             <path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z" />
           </TopCard>
-          <TopCard href={`${LDC_ORIGIN}/songs`} title="練習" accent>
-            <path d="M10 8h.01M12 12h.01M14 8h.01M16 12h.01M18 8h.01M6 8h.01M7 16h10M8 12h.01" />
-            <rect width="20" height="16" x="2" y="4" rx="2" />
-          </TopCard>
         </nav>
 
         {PAGE_FEATURES.dailySongs && <section class="top-section" aria-labelledby="daily-title">
