@@ -55,16 +55,16 @@ describe('top page', () => {
     vi.useRealTimers()
   })
 
-  it('links to the editor, practice and the ranking, with credits and without the subtitle', async () => {
+  it('links to the editor and ranking, with credits and without the subtitle', async () => {
     const text = await html(TOP)
     expect(text).toContain('<title>Song Typing Theater</title>')
     expect(text).not.toContain('class="brand-sub"')
     expect(text).toContain('href="https://ldc.kayomodoki.com/editor"')
-    expect(text).toContain('href="https://ldc.kayomodoki.com/songs"')
+    expect(text).not.toContain('href="https://ldc.kayomodoki.com/songs"')
     expect(text).toContain(`href="${RANKING}/songs"`)
-    // ランキング → 歌詞データ作成 → 練習
+    // ランキング → 歌詞データ作成
     const cards = [...text.matchAll(/<a class="top-card" href="([^"]*)"/g)].map((m) => m[1])
-    expect(cards).toEqual([`${RANKING}/songs`, 'https://ldc.kayomodoki.com/editor', 'https://ldc.kayomodoki.com/songs'])
+    expect(cards).toEqual([`${RANKING}/songs`, 'https://ldc.kayomodoki.com/editor'])
     expect(text).toContain('クレジット')
     expect(text).toContain('href="https://ytyping.net/" target="_blank" rel="noopener noreferrer"')
     expect(text).not.toContain('新着記録')
